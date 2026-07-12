@@ -25,7 +25,7 @@ Current Phase: Document Normalization
 
 Current Sprint: S3 (Normalization Layer)
 
-Current Task: NORM-001
+Current Task: NORM-002
 
 Completed Tasks:
 - [x] FOUND-001
