@@ -21,11 +21,11 @@ Status: Living Development Plan
 
 # Current Status
 
-Current Phase: Knowledge Graph
+Current Phase: Retrieval
 
-Current Sprint: S6 (Knowledge Graph Layer)
+Current Sprint: S9 (Retrieval Layer)
 
-Current Task: GRAPH-001
+Current Task: RET-001
 
 Completed Tasks:
 - [x] FOUND-001
@@ -63,6 +63,16 @@ Completed Tasks:
 - [x] REL-006
 - [x] REL-007
 - [x] REL-008
+- [x] GRAPH-001
+- [x] GRAPH-002
+- [x] GRAPH-003
+- [x] GRAPH-004
+- [x] GRAPH-005
+- [x] GRAPH-006
+- [x] VEC-001
+- [x] VEC-002
+- [x] VEC-003
+- [x] VEC-004
 
 Blocked Tasks:
 - None
