@@ -170,6 +170,16 @@ class InMemoryGraphRepository(GraphRepository):
 
         return {"center": center, "nodes": nodes, "edges": edges}
 
+    def search_nodes(self, query: str, limit: int = 5) -> list[dict]:
+        results = []
+        q = query.lower()
+        for node in self._nodes.values():
+            if q in node.get("canonical_name", "").lower():
+                results.append(dict(node))
+                if len(results) >= limit:
+                    break
+        return results
+
 
 # ── Test Fixtures ──────────────────────────────────────────────────────
 

@@ -130,6 +130,13 @@ class Neo4jGraphRepository(GraphRepository):
                 _expand_subgraph_tx, entity_id, max_depth
             )
 
+    def search_nodes(self, query: str, limit: int = 5) -> list[dict]:
+        """Search graph nodes using text indexing (or simple keyword match)."""
+        with self._driver.session() as session:
+            return session.execute_read(
+                _search_nodes_tx, query, limit
+            )
+
 
 # ── Private Transaction Functions ─────────────────────────────────────
 
@@ -338,3 +345,20 @@ def _expand_subgraph_tx(
             edges.append(edge_props)
 
     return {"center": center, "nodes": nodes, "edges": edges}
+
+
+def _search_nodes_tx(
+    tx: neo4j.ManagedTransaction, query: str, limit: int
+) -> list[dict]:
+    """Read transaction: Search nodes by canonical_name (case-insensitive substring match)."""
+    # Simple fuzzy-like search on canonical_name for MVP.
+    # In production, use Neo4j Full-Text Search indices.
+    cypher = (
+        "MATCH (n) "
+        "WHERE toLower(n.canonical_name) CONTAINS toLower($query) "
+        "RETURN properties(n) AS props "
+        "LIMIT $limit"
+    )
+    result = tx.run(cypher, query=query, limit=limit)
+    return [dict(record["props"]) for record in result]
+

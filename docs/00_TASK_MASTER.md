@@ -21,11 +21,11 @@ Status: Living Development Plan
 
 # Current Status
 
-Current Phase: Retrieval
+Current Phase: GraphRAG / Generation
 
-Current Sprint: S9 (Retrieval Layer)
+Current Sprint: S10 (Intelligence Layer)
 
-Current Task: RET-001
+Current Task: GEN-001
 
 Completed Tasks:
 - [x] FOUND-001
@@ -73,6 +73,8 @@ Completed Tasks:
 - [x] VEC-002
 - [x] VEC-003
 - [x] VEC-004
+- [x] RET-001
+- [x] GEN-001
 
 Blocked Tasks:
 - None

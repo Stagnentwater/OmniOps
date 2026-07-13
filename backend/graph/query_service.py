@@ -88,3 +88,16 @@ class GraphQueryService:
             A dict with 'center', 'nodes', and 'edges' keys.
         """
         return self._repository.expand_subgraph(entity_id, max_depth=max_depth)
+
+    def search_nodes(self, query: str, limit: int = 5) -> list[dict]:
+        """Search graph nodes using keyword matching on names or properties.
+        
+        Args:
+            query: The text query to search for.
+            limit: Maximum number of nodes to return.
+            
+        Returns:
+            A list of node property dicts.
+        """
+        return self._repository.search_nodes(query, limit=limit)
+
