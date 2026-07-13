@@ -1,0 +1,165 @@
+# ==========================================
+# OmniOps .gitignore
+# ==========================================
+
+# ----------------------------
+# Python
+# ----------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+
+# Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python build
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Python cache & tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# ----------------------------
+# Environment Variables
+# ----------------------------
+.env
+.env.*
+!.env.example
+
+# ----------------------------
+# VS Code
+# ----------------------------
+.vscode/
+.history/
+
+# ----------------------------
+# JetBrains
+# ----------------------------
+.idea/
+
+# ----------------------------
+# OS Files
+# ----------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ----------------------------
+# Logs
+# ----------------------------
+*.log
+logs/
+*.out
+*.err
+
+# ----------------------------
+# Node / React
+# ----------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# React build
+build/
+.next/
+out/
+dist/
+
+# Vite
+.vite/
+
+# ----------------------------
+# Docker
+# ----------------------------
+docker-compose.override.yml
+
+# Docker volumes (if local)
+docker-data/
+postgres-data/
+neo4j-data/
+qdrant-data/
+redis-data/
+
+# ----------------------------
+# Database Files
+# ----------------------------
+*.db
+*.sqlite
+*.sqlite3
+
+# ----------------------------
+# Temporary Files
+# ----------------------------
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+
+# ----------------------------
+# Test Outputs
+# ----------------------------
+coverage.xml
+nosetests.xml
+
+# ----------------------------
+# Model Artifacts
+# (ignore large downloaded models)
+# ----------------------------
+models/
+checkpoints/
+weights/
+*.pt
+*.pth
+*.ckpt
+*.bin
+
+# ----------------------------
+# Local Uploads
+# ----------------------------
+uploads/
+storage/
+
+# ----------------------------
+# Cache
+# ----------------------------
+.cache/
+
+# ----------------------------
+# Antigravity / Gemini
+# ----------------------------
+.gemini/
+.antigravity/
+
+# ----------------------------
+# Secrets
+# ----------------------------
+*.pem
+*.key
+*.crt
+*.pfx
+
+# ----------------------------
+# Ignore Python bytecode everywhere
+# ----------------------------
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd

@@ -21,11 +21,11 @@ Status: Living Development Plan
 
 # Current Status
 
-Current Phase: Document Normalization
+Current Phase: Knowledge Graph
 
-Current Sprint: S3 (Normalization Layer)
+Current Sprint: S6 (Knowledge Graph Layer)
 
-Current Task: NORM-002
+Current Task: GRAPH-001
 
 Completed Tasks:
 - [x] FOUND-001
@@ -39,6 +39,30 @@ Completed Tasks:
 - [x] ING-002
 - [x] ING-003
 - [x] ING-004
+- [x] ING-005
+- [x] NORM-001
+- [x] NORM-002
+- [x] NORM-003
+- [x] NORM-004
+- [x] NORM-005
+- [x] NORM-006
+- [x] ENT-001
+- [x] ENT-002
+- [x] ENT-003
+- [x] ENT-004
+- [x] ENT-005
+- [x] ENT-006
+- [x] ENT-007
+- [x] ENT-008
+- [x] ENT-009
+- [x] REL-001
+- [x] REL-002
+- [x] REL-003
+- [x] REL-004
+- [x] REL-005
+- [x] REL-006
+- [x] REL-007
+- [x] REL-008
 
 Blocked Tasks:
 - None
