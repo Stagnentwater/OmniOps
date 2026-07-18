@@ -121,6 +121,60 @@ class MetadataRepository:
                 )
             connection.commit()
 
+    def get_document_metadata(self, document_id: str) -> DocumentMetadata | None:
+        with self._connect() as connection:
+            self._ensure_tables(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT document_id, file_name, content_type, storage_key, storage_backend, size_bytes, checksum
+                    FROM documents
+                    WHERE document_id = %s;
+                    """,
+                    (document_id,)
+                )
+                row = cursor.fetchone()
+            
+        if not row:
+            return None
+            
+        return DocumentMetadata(
+            document_id=row[0],
+            file_name=row[1],
+            content_type=row[2],
+            stored_object=StoredObject(
+                storage_key=row[3],
+                backend=row[4],
+                size_bytes=row[5],
+                checksum=row[6],
+                content_type=row[2]
+            )
+        )
+
+    def delete_document(self, *, document_id: str) -> None:
+        with self._connect() as connection:
+            self._ensure_tables(connection)
+            with connection.cursor() as cursor:
+                # Delete events linked to jobs of this document
+                cursor.execute(
+                    """
+                    DELETE FROM ingestion_job_events 
+                    WHERE job_id IN (SELECT job_id FROM ingestion_jobs WHERE document_id = %s);
+                    """,
+                    (document_id,)
+                )
+                # Delete jobs
+                cursor.execute(
+                    "DELETE FROM ingestion_jobs WHERE document_id = %s;",
+                    (document_id,)
+                )
+                # Delete document
+                cursor.execute(
+                    "DELETE FROM documents WHERE document_id = %s;",
+                    (document_id,)
+                )
+            connection.commit()
+
     def create_ingestion_job(self, *, document_id: str) -> str:
         job_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc)

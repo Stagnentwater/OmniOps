@@ -89,6 +89,30 @@ class Neo4jGraphRepository(GraphRepository):
         for relationship in package.resolved_relationships:
             _persist_relationship(tx, relationship, document_id, now)
 
+    def delete_document(self, document_id: str) -> None:
+        """Delete all entities and relationships associated with a document."""
+        with self._driver.session() as session:
+            session.execute_write(self._delete_document_tx, document_id)
+            
+    @staticmethod
+    def _delete_document_tx(tx: neo4j.ManagedTransaction, document_id: str) -> None:
+        """Transaction function to delete a document and its nodes."""
+        # 1. Delete all relationships pointing to this document_id
+        tx.run(
+            "MATCH ()-[r {document_id: $document_id}]->() DELETE r",
+            document_id=document_id,
+        )
+        # 2. Delete all nodes pointing to this document_id
+        tx.run(
+            "MATCH (n {document_id: $document_id}) DETACH DELETE n",
+            document_id=document_id,
+        )
+        # 3. Delete the Document node itself
+        tx.run(
+            "MATCH (d:Document {document_id: $document_id}) DETACH DELETE d",
+            document_id=document_id,
+        )
+
     # ── Read Operations ───────────────────────────────────────────────
 
     def get_entity(self, entity_id: str) -> dict | None:
@@ -355,10 +379,10 @@ def _search_nodes_tx(
     # In production, use Neo4j Full-Text Search indices.
     cypher = (
         "MATCH (n) "
-        "WHERE toLower(n.canonical_name) CONTAINS toLower($query) "
+        "WHERE toLower(n.canonical_name) CONTAINS toLower($search_term) "
         "RETURN properties(n) AS props "
         "LIMIT $limit"
     )
-    result = tx.run(cypher, query=query, limit=limit)
+    result = tx.run(cypher, search_term=query, limit=limit)
     return [dict(record["props"]) for record in result]
 

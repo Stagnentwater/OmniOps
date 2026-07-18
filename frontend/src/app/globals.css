@@ -1,0 +1,11 @@
+@import "tailwindcss";
+
+/* Minimal overrides for a clean, premium look */
+body {
+  background-color: #f8fafc;
+}
+
+/* Ensure smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}

@@ -61,3 +61,12 @@ class VectorRepository(ABC):
             A list of SearchResult objects, ranked by similarity score (descending).
         """
         pass
+
+    @abstractmethod
+    def delete_document(self, document_id: str) -> None:
+        """Delete all chunks for a specific document.
+        
+        Args:
+            document_id: The document ID to filter points for deletion.
+        """
+        pass

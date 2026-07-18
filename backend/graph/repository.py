@@ -27,6 +27,10 @@ class GraphRepository(ABC):
         identical graph state without creating duplicate nodes or edges.
         """
 
+    @abstractmethod
+    def delete_document(self, document_id: str) -> None:
+        """Delete all entities and relationships associated with a document."""
+
     # ── Read Operations ───────────────────────────────────────────────
 
     @abstractmethod

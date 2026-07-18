@@ -17,7 +17,11 @@ def main() -> None:
         port=settings.redis.port,
         db=settings.redis.db,
     )
-    worker = Worker([settings.queue.name], connection=redis_connection)
+    import sys
+    from rq.worker import SimpleWorker
+    
+    worker_class = SimpleWorker if sys.platform == "win32" else Worker
+    worker = worker_class([settings.queue.name], connection=redis_connection)
     worker.work(with_scheduler=True)
 
 

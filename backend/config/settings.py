@@ -1,72 +1,62 @@
-"""Centralized environment configuration for API and worker processes."""
+"""Centralized strict environment configuration for API and worker processes."""
 
-from dataclasses import dataclass
 from functools import lru_cache
 import os
+from pathlib import Path
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, field_validator
+from dotenv import load_dotenv
+
+# Load .env file from project root into os.environ
+env_path = Path(__file__).parent.parent.parent / ".env"
+load_dotenv(dotenv_path=env_path)
 
 
-@dataclass(frozen=True)
-class FastAPISettings:
+class FastAPISettings(BaseSettings):
     """Settings for FastAPI runtime behavior."""
+    app_name: str = Field(default="OmniOps API", validation_alias="FASTAPI_APP_NAME")
+    host: str = Field(default="0.0.0.0", validation_alias="FASTAPI_HOST")
+    port: int = Field(default=8000, validation_alias="FASTAPI_PORT")
 
-    app_name: str
-    host: str
-    port: int
 
-
-@dataclass(frozen=True)
-class RedisSettings:
+class RedisSettings(BaseSettings):
     """Settings for Redis queue connectivity."""
+    host: str = Field(default="redis", validation_alias="REDIS_HOST")
+    port: int = Field(default=6379, validation_alias="REDIS_PORT")
+    db: int = Field(default=0, validation_alias="REDIS_DB")
 
-    host: str
-    port: int
-    db: int
 
-
-@dataclass(frozen=True)
-class QueueSettings:
+class QueueSettings(BaseSettings):
     """Settings for RQ queue behavior and retry policy."""
+    name: str = Field(default="default", validation_alias="RQ_QUEUE_NAME")
+    job_timeout_seconds: int = Field(default=900, validation_alias="RQ_JOB_TIMEOUT_SECONDS")
+    retry_max: int = Field(default=3, validation_alias="RQ_RETRY_MAX")
+    retry_intervals_seconds: list[int] = Field(default=[10, 30, 60], validation_alias="RQ_RETRY_INTERVALS_SECONDS")
 
-    name: str
-    job_timeout_seconds: int
-    retry_max: int
-    retry_intervals_seconds: list[int]
+    @field_validator("retry_intervals_seconds", mode="before")
+    @classmethod
+    def parse_intervals(cls, v: str | list[int]) -> list[int]:
+        if isinstance(v, str):
+            return [int(x.strip()) for x in v.split(",") if x.strip()]
+        return v
 
 
-@dataclass(frozen=True)
-class PostgresSettings:
+class PostgresSettings(BaseSettings):
     """Settings for PostgreSQL connectivity."""
-
-    host: str
-    port: int
-    database: str
-    user: str
-    password: str
-
-    @property
-    def dsn(self) -> str:
-        """Build a PostgreSQL DSN for future database clients."""
-        return (
-            f"postgresql://{self.user}:{self.password}"
-            f"@{self.host}:{self.port}/{self.database}"
-        )
+    dsn: str = Field(..., validation_alias="POSTGRES_URL", description="Full Postgres DSN string")
 
 
-@dataclass(frozen=True)
-class Neo4jSettings:
+class Neo4jSettings(BaseSettings):
     """Settings for Neo4j connectivity."""
+    uri: str = Field(..., validation_alias="NEO4J_URI")
+    user: str = Field(default="neo4j", validation_alias="NEO4J_USER")
+    password: str = Field(..., validation_alias="NEO4J_PASSWORD")
 
-    uri: str
-    user: str
-    password: str
 
-
-@dataclass(frozen=True)
-class QdrantSettings:
+class QdrantSettings(BaseSettings):
     """Settings for Qdrant connectivity."""
-
-    host: str
-    port: int
+    host: str = Field(..., validation_alias="QDRANT_HOST")
+    port: int = Field(default=6333, validation_alias="QDRANT_PORT")
 
     @property
     def url(self) -> str:
@@ -74,109 +64,42 @@ class QdrantSettings:
         return f"http://{self.host}:{self.port}"
 
 
-@dataclass(frozen=True)
-class OpenRouterSettings:
+class OpenRouterSettings(BaseSettings):
     """Settings for OpenRouter integration."""
+    base_url: str = Field(default="https://openrouter.ai/api/v1", validation_alias="OPENROUTER_BASE_URL")
+    api_key: str = Field(..., validation_alias="OPENROUTER_API_KEY")
+    model: str = Field(..., validation_alias="OPENROUTER_MODEL")
 
-    base_url: str
-    api_key: str
-    model: str
 
-
-@dataclass(frozen=True)
-class StorageSettings:
+class StorageSettings(BaseSettings):
     """Settings for storage backend selection."""
+    backend: str = Field(default="local", validation_alias="STORAGE_BACKEND")
+    local_root: str = Field(default="/data/storage", validation_alias="STORAGE_LOCAL_ROOT")
 
-    backend: str
-    local_root: str
 
-
-@dataclass(frozen=True)
-class EmbeddingSettings:
+class EmbeddingSettings(BaseSettings):
     """Settings for embedding model selection."""
+    model_config = SettingsConfigDict(protected_namespaces=())
+    model_name: str = Field(default="BAAI/bge-m3", validation_alias="EMBEDDING_MODEL_NAME")
 
-    model_name: str
 
-
-@dataclass(frozen=True)
-class Settings:
+class Settings(BaseSettings):
     """Root settings object used by API and worker."""
+    
+    model_config = SettingsConfigDict(env_nested_delimiter="__", env_file=(".env", "../.env"), extra="ignore")
 
-    fastapi: FastAPISettings
-    redis: RedisSettings
-    queue: QueueSettings
-    postgres: PostgresSettings
-    neo4j: Neo4jSettings
-    qdrant: QdrantSettings
-    openrouter: OpenRouterSettings
-    storage: StorageSettings
-    embedding: EmbeddingSettings
-
-
-def _env(name: str, default: str) -> str:
-    return os.getenv(name, default)
-
-
-def _env_int(name: str, default: int) -> int:
-    value = os.getenv(name)
-    if value is None:
-        return default
-    return int(value)
-
-
-def _env_int_list(name: str, default: list[int]) -> list[int]:
-    value = os.getenv(name)
-    if value is None or value.strip() == "":
-        return default
-    return [int(item.strip()) for item in value.split(",") if item.strip()]
+    fastapi: FastAPISettings = Field(default_factory=FastAPISettings)
+    redis: RedisSettings = Field(default_factory=RedisSettings)
+    queue: QueueSettings = Field(default_factory=QueueSettings)
+    postgres: PostgresSettings = Field(default_factory=PostgresSettings)  # Required
+    neo4j: Neo4jSettings = Field(default_factory=Neo4jSettings)           # Required
+    qdrant: QdrantSettings = Field(default_factory=QdrantSettings)        # Required
+    openrouter: OpenRouterSettings = Field(default_factory=OpenRouterSettings) # Required
+    storage: StorageSettings = Field(default_factory=StorageSettings)
+    embedding: EmbeddingSettings = Field(default_factory=EmbeddingSettings)
 
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    """Load and cache settings from process environment."""
-    return Settings(
-        fastapi=FastAPISettings(
-            app_name=_env("FASTAPI_APP_NAME", "OmniOps API"),
-            host=_env("FASTAPI_HOST", "0.0.0.0"),
-            port=_env_int("FASTAPI_PORT", 8000),
-        ),
-        redis=RedisSettings(
-            host=_env("REDIS_HOST", "redis"),
-            port=_env_int("REDIS_PORT", 6379),
-            db=_env_int("REDIS_DB", 0),
-        ),
-        queue=QueueSettings(
-            name=_env("RQ_QUEUE_NAME", "default"),
-            job_timeout_seconds=_env_int("RQ_JOB_TIMEOUT_SECONDS", 900),
-            retry_max=_env_int("RQ_RETRY_MAX", 3),
-            retry_intervals_seconds=_env_int_list("RQ_RETRY_INTERVALS_SECONDS", [10, 30, 60]),
-        ),
-        postgres=PostgresSettings(
-            host=_env("POSTGRES_HOST", "postgres"),
-            port=_env_int("POSTGRES_PORT", 5432),
-            database=_env("POSTGRES_DB", "omniops"),
-            user=_env("POSTGRES_USER", "omniops"),
-            password=_env("POSTGRES_PASSWORD", "omniops"),
-        ),
-        neo4j=Neo4jSettings(
-            uri=_env("NEO4J_URI", "bolt://neo4j:7687"),
-            user=_env("NEO4J_USER", "neo4j"),
-            password=_env("NEO4J_PASSWORD", "password"),
-        ),
-        qdrant=QdrantSettings(
-            host=_env("QDRANT_HOST", "qdrant"),
-            port=_env_int("QDRANT_PORT", 6333),
-        ),
-        openrouter=OpenRouterSettings(
-            base_url=_env("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
-            api_key=_env("OPENROUTER_API_KEY", ""),
-            model=_env("OPENROUTER_MODEL", "openai/gpt-4o-mini"),
-        ),
-        storage=StorageSettings(
-            backend=_env("STORAGE_BACKEND", "local"),
-            local_root=_env("STORAGE_LOCAL_ROOT", "/data/storage"),
-        ),
-        embedding=EmbeddingSettings(
-            model_name=_env("EMBEDDING_MODEL_NAME", "BAAI/bge-m3"),
-        ),
-    )
+    """Load, validate, and cache settings from process environment. Fails fast if required variables are missing."""
+    return Settings()

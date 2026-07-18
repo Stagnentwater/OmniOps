@@ -8,7 +8,7 @@ import json
 import logging
 
 from database.repositories import DocumentMetadata, MetadataRepository
-from services.queue_service import enqueue_ingestion_job
+from ingestion.orchestrator import process_ingestion_job
 from storage.factory import get_storage_service
 
 
@@ -80,6 +80,7 @@ def handle_upload(
     file_name: str,
     content_type: str,
     data: bytes,
+    background_tasks,
 ) -> UploadResult:
     """Execute upload flow: validate, store, persist metadata, create job, enqueue."""
     _validate_upload(file_name=file_name, data=data)
@@ -140,12 +141,14 @@ def handle_upload(
 
     job_id = repository.create_ingestion_job(document_id=document_id)
     try:
-        rq_job_id = enqueue_ingestion_job(
+        # Bypass RQ on Windows and use FastAPI BackgroundTasks directly
+        background_tasks.add_task(
+            process_ingestion_job,
             lifecycle_job_id=job_id,
             document_id=document_id,
             file_name=file_name,
         )
-        repository.mark_job_enqueued(job_id=job_id, rq_job_id=rq_job_id)
+        repository.mark_job_enqueued(job_id=job_id, rq_job_id=job_id)
     except Exception as exc:
         repository.mark_job_queue_failed(job_id=job_id, error=str(exc))
         _emit_upload_log(
