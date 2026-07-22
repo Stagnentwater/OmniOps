@@ -1,11 +1,99 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
-/* Minimal overrides for a clean, premium look */
-body {
-  background-color: #f8fafc;
+:root {
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+
+  /* Industrial palette */
+  --color-surface: #0a0a0f;
+  --color-surface-elevated: #111118;
+  --color-surface-hover: #1a1a24;
+  --color-border: #23232f;
+  --color-border-subtle: #1a1a24;
+  --color-text-primary: #e4e4ed;
+  --color-text-secondary: #8888a0;
+  --color-text-muted: #55556a;
+  --color-accent: #6366f1;
+  --color-accent-dim: #4f46e5;
+
+  /* Entity type colors */
+  --entity-asset: #22d3ee;
+  --entity-location: #a78bfa;
+  --entity-document: #34d399;
+  --entity-procedure: #fb923c;
+  --entity-component: #60a5fa;
+  --entity-generic: #94a3b8;
 }
 
-/* Ensure smooth scrolling */
 html {
   scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-surface);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Dot grid background for graph panels */
+.dot-grid {
+  background-image: radial-gradient(circle, var(--color-border) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* Monospace entity labels */
+.entity-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+/* Subtle glow for active elements */
+.glow-accent {
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.15), 0 0 60px rgba(99, 102, 241, 0.05);
+}
+
+/* Citation superscript */
+.citation-marker {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  vertical-align: super;
+  line-height: 0;
+  cursor: pointer;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(99, 102, 241, 0.15);
+  color: #818cf8;
+  transition: all 0.15s ease;
+  margin: 0 1px;
+}
+.citation-marker:hover {
+  background: rgba(99, 102, 241, 0.3);
+  color: #a5b4fc;
+}
+
+/* Stepper connector line */
+.stepper-line {
+  width: 2px;
+  background: linear-gradient(to bottom, var(--color-accent), var(--color-border));
 }

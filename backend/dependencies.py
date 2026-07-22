@@ -71,11 +71,30 @@ def get_ingestion_orchestrator(job_id: str) -> IngestionOrchestrator:
         metadata_repo.update_job_status(job_id=job_id, status=state)
 
     def real_parse(file_path: str, doc_id: str) -> DocumentContent:
-        from parser.pdf_parser import parse_pdf
+        """Route to the correct parser based on file extension."""
         import os
+        ext = os.path.splitext(file_path)[1].lower()
+
         with open(file_path, "rb") as f:
-            pdf_bytes = f.read()
-        doc = parse_pdf(pdf_bytes=pdf_bytes, filename=os.path.basename(file_path))
+            file_bytes = f.read()
+
+        basename = os.path.basename(file_path)
+
+        if ext == ".pdf":
+            from parser.pdf_parser import parse_pdf
+            doc = parse_pdf(pdf_bytes=file_bytes, filename=basename)
+        elif ext == ".docx":
+            from parser.docx_parser import parse_docx
+            doc = parse_docx(docx_bytes=file_bytes, filename=basename)
+        elif ext == ".csv":
+            from parser.csv_parser import parse_csv
+            doc = parse_csv(csv_bytes=file_bytes, filename=basename)
+        elif ext in (".xlsx", ".xls"):
+            from parser.excel_parser import parse_excel
+            doc = parse_excel(excel_bytes=file_bytes, filename=basename)
+        else:
+            raise ValueError(f"Unsupported file type: {ext}")
+
         # Attach doc_id to metadata so downstream stages have it
         doc.metadata["document_id"] = doc_id
         return doc

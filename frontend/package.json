@@ -9,9 +9,13 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "d3-force": "^3.0.0",
+    "framer-motion": "^12.42.2",
+    "lucide-react": "^1.25.0",
     "next": "16.2.10",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "react-force-graph-2d": "^1.29.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

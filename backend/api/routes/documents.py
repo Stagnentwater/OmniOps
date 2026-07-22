@@ -4,6 +4,9 @@ from pydantic import BaseModel
 from typing import List, Optional
 import uuid
 from io import BytesIO
+import json
+import asyncio
+from utils.event_bus import bus
 
 from dependencies import get_metadata_repo, get_ingestion_orchestrator
 from database.repositories import MetadataRepository, DocumentMetadata
@@ -75,14 +78,27 @@ async def list_documents(repo: MetadataRepository = Depends(get_metadata_repo)) 
 
 @router.get("/{document_id}/content")
 async def get_document_content(document_id: str, repo: MetadataRepository = Depends(get_metadata_repo)):
-    """Stream the raw PDF file to the client."""
+    """Stream the raw document file to the client."""
     meta = repo.get_document_metadata(document_id)
     if not meta:
         raise HTTPException(status_code=404, detail="Document not found")
         
     storage = get_storage_service()
     content = storage.get_bytes(storage_key=meta.stored_object.storage_key)
-    return Response(content=content, media_type="application/pdf")
+    
+    # Detect MIME type from filename
+    import os
+    ext = os.path.splitext(meta.file_name)[1].lower()
+    mime_map = {
+        ".pdf": "application/pdf",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".csv": "text/csv",
+        ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ".xls": "application/vnd.ms-excel",
+    }
+    media_type = mime_map.get(ext, "application/octet-stream")
+    
+    return Response(content=content, media_type=media_type)
 
 @router.get("/{document_id}/status", response_model=DocumentStatusResponse)
 async def get_document_status(document_id: str, repo: MetadataRepository = Depends(get_metadata_repo)) -> DocumentStatusResponse:
@@ -105,6 +121,40 @@ async def get_document_status(document_id: str, repo: MetadataRepository = Depen
         progress_percent=100 if status == "COMPLETED" else 50,
         error_message=row[1]
     )
+
+@router.get("/{document_id}/stream")
+async def stream_document_progress(document_id: str, repo: MetadataRepository = Depends(get_metadata_repo)):
+    """Stream ingestion progress using Server-Sent Events (SSE)."""
+    conn = repo._connect()
+    repo._ensure_tables(conn)
+    with conn.cursor() as cur:
+        cur.execute("SELECT status FROM ingestion_jobs WHERE document_id = %s ORDER BY created_at DESC LIMIT 1", (document_id,))
+        row = cur.fetchone()
+    conn.close()
+    
+    current_status = row[0] if row else None
+    
+    async def event_generator():
+        # Yield the current status immediately so the frontend catches up
+        if current_status:
+            yield f"data: {json.dumps({'stage': current_status, 'progress': 100 if current_status == 'COMPLETED' else (-1 if current_status == 'FAILED' else 0)})}\n\n"
+            
+        # If already finished, return immediately after yielding it
+        if current_status in ("COMPLETED", "FAILED"):
+            return
+            
+        topic = f"pipeline_{document_id}"
+        queue = bus.subscribe(topic)
+        try:
+            while True:
+                event = await queue.get()
+                yield f"data: {json.dumps(event)}\n\n"
+                if event.get("stage") in ("COMPLETED", "FAILED"):
+                    break
+        finally:
+            bus.unsubscribe(topic, queue)
+            
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 @router.delete("/{document_id}", response_model=DeleteResponse)
 async def delete_document(

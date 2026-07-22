@@ -9,7 +9,10 @@ from api.routes.health import router as health_router
 from api.routes.documents import router as documents_router
 from api.routes.uploads import router as uploads_router
 from api.routes.query import router as query_router
+from api.routes.knowledge import router as knowledge_router
+from api.routes.chat import router as chat_router
 
+logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(message)s")
 logger = logging.getLogger(__name__)
 
 # Load settings immediately. This will fail fast if required env vars are missing.
@@ -58,3 +61,5 @@ app.include_router(health_router)
 app.include_router(documents_router)
 app.include_router(uploads_router)
 app.include_router(query_router)
+app.include_router(knowledge_router)
+app.include_router(chat_router)

@@ -13,7 +13,7 @@ from storage.factory import get_storage_service
 
 
 logger = logging.getLogger(__name__)
-ALLOWED_EXTENSIONS = {".pdf", ".docx", ".csv"}
+ALLOWED_EXTENSIONS = {".pdf", ".docx", ".csv", ".xlsx", ".xls"}
 
 
 class UploadServiceError(Exception):
@@ -64,7 +64,7 @@ def _validate_upload(*, file_name: str, data: bytes) -> None:
     if extension not in ALLOWED_EXTENSIONS:
         raise UploadServiceError(
             code="unsupported_file_type",
-            message="Only PDF, DOCX, and CSV are supported in MVP.",
+            message="Only PDF, DOCX, CSV, and Excel (.xlsx/.xls) files are supported.",
             status_code=400,
         )
     if not data:

@@ -161,6 +161,13 @@ class Neo4jGraphRepository(GraphRepository):
                 _search_nodes_tx, query, limit
             )
 
+    def get_full_graph(self, limit: int = 150) -> dict:
+        """Fetch a broad overview of the knowledge graph for visualization."""
+        with self._driver.session() as session:
+            return session.execute_read(
+                _get_full_graph_tx, limit
+            )
+
 
 # ── Private Transaction Functions ─────────────────────────────────────
 
@@ -201,9 +208,8 @@ def _persist_relationship(
     now: str,
 ) -> None:
     """MERGE a single relationship between two already-persisted entity nodes."""
-    rel_type = relationship.relationship_type
-    if rel_type not in ALLOWED_RELATIONSHIP_TYPES:
-        return  # Skip unknown relationship types silently
+    # Clean up relationship type to be a valid Neo4j relationship type
+    rel_type = relationship.relationship_type.upper().replace(" ", "_").replace("-", "_")
 
     props: dict[str, Any] = {
         "relationship_id": relationship.relationship_id,
@@ -385,4 +391,47 @@ def _search_nodes_tx(
     )
     result = tx.run(cypher, search_term=query, limit=limit)
     return [dict(record["props"]) for record in result]
+
+
+def _get_full_graph_tx(
+    tx: neo4j.ManagedTransaction, limit: int
+) -> dict:
+    """Read transaction: Fetch a subset of the graph nodes and their relationships."""
+    query = (
+        "MATCH (n) "
+        "WITH n LIMIT $limit "
+        "OPTIONAL MATCH (n)-[r]->(m) "
+        "WITH COLLECT(DISTINCT n) AS nodes1, COLLECT(DISTINCT m) AS nodes2, "
+        "     COLLECT(DISTINCT {rel: r, src: startNode(r), tgt: endNode(r)}) AS rels "
+        "RETURN nodes1, nodes2, rels"
+    )
+    result = tx.run(query, limit=limit)
+    record = result.single()
+
+    nodes_dict = {}
+    edges = []
+
+    if record is not None:
+        for node in record["nodes1"]:
+            if node:
+                props = dict(node)
+                nodes_dict[props.get("entity_id")] = props
+                
+        for node in record["nodes2"]:
+            if node:
+                props = dict(node)
+                nodes_dict[props.get("entity_id")] = props
+
+        for rel_data in record["rels"]:
+            rel = rel_data.get("rel")
+            if rel:
+                src = rel_data["src"]
+                tgt = rel_data["tgt"]
+                edge_props = dict(rel)
+                edge_props["relationship_type"] = rel.type
+                edge_props["source_entity_id"] = dict(src).get("entity_id", "")
+                edge_props["target_entity_id"] = dict(tgt).get("entity_id", "")
+                edges.append(edge_props)
+
+    return {"nodes": list(nodes_dict.values()), "edges": edges}
 

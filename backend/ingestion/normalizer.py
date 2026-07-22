@@ -253,23 +253,41 @@ def segment_pages(document_content: DocumentContent) -> DocumentContent:
 
     for page_idx, lines in enumerate(pages_lines):
         segments = []
+        current_paragraph = []
+        
         for line in lines:
             line_stripped = line.strip()
             if not line_stripped:
+                if current_paragraph:
+                    segments.append({"type": "paragraph", "text": " ".join(current_paragraph)})
+                    current_paragraph = []
                 continue
 
             # Classify
             if line_stripped in headers:
+                if current_paragraph:
+                    segments.append({"type": "paragraph", "text": " ".join(current_paragraph)})
+                    current_paragraph = []
                 segments.append({"type": "header", "text": line_stripped})
             elif line_stripped in footers:
+                if current_paragraph:
+                    segments.append({"type": "paragraph", "text": " ".join(current_paragraph)})
+                    current_paragraph = []
                 segments.append({"type": "footer", "text": line_stripped})
             elif (num_pattern.match(line_stripped) or 
                   sec_pattern.match(line_stripped) or 
                   (all_caps_pattern.match(line_stripped) and not line_stripped.isdigit())):
+                if current_paragraph:
+                    segments.append({"type": "paragraph", "text": " ".join(current_paragraph)})
+                    current_paragraph = []
                 segments.append({"type": "heading", "text": line_stripped})
                 sections.append(line_stripped)
             else:
-                segments.append({"type": "paragraph", "text": line_stripped})
+                current_paragraph.append(line_stripped)
+                
+        if current_paragraph:
+            segments.append({"type": "paragraph", "text": " ".join(current_paragraph)})
+            
         page_segments.append(segments)
 
     # Enrich metadata
