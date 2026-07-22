@@ -98,7 +98,11 @@ async def get_document_content(document_id: str, repo: MetadataRepository = Depe
     }
     media_type = mime_map.get(ext, "application/octet-stream")
     
-    return Response(content=content, media_type=media_type)
+    headers = {
+        "Content-Disposition": f'inline; filename="{meta.file_name}"'
+    }
+    
+    return Response(content=content, media_type=media_type, headers=headers)
 
 @router.get("/{document_id}/status", response_model=DocumentStatusResponse)
 async def get_document_status(document_id: str, repo: MetadataRepository = Depends(get_metadata_repo)) -> DocumentStatusResponse:

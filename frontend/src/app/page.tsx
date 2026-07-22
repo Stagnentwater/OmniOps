@@ -8,7 +8,7 @@ import { IngestionWorkspace } from "@/components/IngestionWorkspace";
 import { SystemStatusPanel } from "@/components/SystemStatusPanel";
 import { 
   Terminal, Search, Database, Share2, 
-  Settings, User, Code2, Globe, FileText, X, BookOpen
+  Settings, User, Code2, Globe, FileText, X, BookOpen, Download
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -20,7 +20,7 @@ export default function UnifiedPage() {
   
   // ─── Interaction State ────────────────────────────────────
   const [graphViewMode, setGraphViewMode] = useState<"global" | "retrieval">("global");
-  const [activeDocUrl, setActiveDocUrl] = useState<string | null>(null);
+  const [activeDocViewer, setActiveDocViewer] = useState<{url: string, isPdf: boolean, filename: string} | null>(null);
   const [activeCitationPreview, setActiveCitationPreview] = useState<{source_text: string, document_id: string, page_index: number, chunk_id: string} | null>(null);
   const [hoveredCitationId, setHoveredCitationId] = useState<string | null>(null);
 
@@ -194,8 +194,20 @@ export default function UnifiedPage() {
   const handleOpenFullDocument = async () => {
     if (!activeCitationPreview) return;
     try {
+      const doc = documents.find(d => d.id === activeCitationPreview.document_id);
+      const filename = doc?.filename || "document";
+      const isPdf = filename.toLowerCase().endsWith(".pdf");
+      
       const url = await ApiClient.getDocumentContentUrl(activeCitationPreview.document_id);
-      setActiveDocUrl(`${url}#page=${activeCitationPreview.page_index + 1}`);
+      
+      // Close the preview panel and open the full document viewer
+      setActiveCitationPreview(null);
+      
+      setActiveDocViewer({
+        url: isPdf ? `${url}#page=${activeCitationPreview.page_index + 1}` : url,
+        isPdf,
+        filename
+      });
     } catch (err) {
       console.error("Failed to load document content", err);
     }
@@ -542,13 +554,13 @@ export default function UnifiedPage() {
 
       {/* ─── Document Viewer Modal ────────────────────── */}
       <AnimatePresence>
-        {activeDocUrl && (
+        {activeDocViewer && (
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-8"
-            onClick={() => setActiveDocUrl(null)}
+            onClick={() => setActiveDocViewer(null)}
           >
             <motion.div 
               initial={{ scale: 0.95, y: 20 }}
@@ -560,24 +572,63 @@ export default function UnifiedPage() {
             >
               {/* Modal Header */}
               <div className="h-12 border-b border-[var(--color-border)] bg-[var(--color-surface-elevated)] flex items-center justify-between px-4 shrink-0">
-                <div className="flex items-center gap-2 text-[var(--color-text-primary)]">
-                  <FileText className="w-4 h-4 text-indigo-400" />
-                  <span className="text-sm font-semibold tracking-wide">Source Evidence</span>
+                <div className="flex items-center gap-4 text-[var(--color-text-primary)]">
+                  {/* Option to download on the top left corner */}
+                  <a 
+                    href={activeDocViewer.url} 
+                    download={activeDocViewer.filename}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500/20 transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Download File
+                  </a>
+                  
+                  <div className="flex items-center gap-2 border-l border-[var(--color-border)] pl-4">
+                    <FileText className="w-4 h-4 text-indigo-400" />
+                    <span className="text-sm font-semibold tracking-wide truncate max-w-[300px]">
+                      {activeDocViewer.filename}
+                    </span>
+                  </div>
                 </div>
                 <button 
-                  onClick={() => setActiveDocUrl(null)}
+                  onClick={() => setActiveDocViewer(null)}
                   className="p-1.5 rounded-md text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-border)] transition-colors"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
-              {/* Modal Body (PDF Viewer) */}
-              <div className="flex-1 bg-[#2b2b2b]">
-                <iframe 
-                  src={activeDocUrl} 
-                  className="w-full h-full border-none"
-                  title="Document Viewer"
-                />
+              
+              {/* Modal Body */}
+              <div className="flex-1 bg-[#2b2b2b] flex items-center justify-center relative">
+                {activeDocViewer.isPdf ? (
+                  <iframe 
+                    src={activeDocViewer.url} 
+                    className="w-full h-full border-none bg-white"
+                    title="Document Viewer"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-center p-8">
+                    <div className="w-16 h-16 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] flex items-center justify-center mb-4 shadow-lg">
+                      <FileText className="w-8 h-8 text-[var(--color-text-muted)]" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-[var(--color-text-primary)] mb-2">Native Preview Not Supported</h3>
+                    <p className="text-sm text-[var(--color-text-secondary)] max-w-md mx-auto mb-6 leading-relaxed">
+                      This file format ({activeDocViewer.filename.split('.').pop()?.toUpperCase()}) cannot be displayed natively inside the browser.
+                    </p>
+                    <a 
+                      href={activeDocViewer.url} 
+                      download={activeDocViewer.filename}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-indigo-500/15 border border-indigo-500/40 text-indigo-400 hover:bg-indigo-500/25 hover:border-indigo-400 transition-all"
+                    >
+                      <Download className="w-4 h-4" />
+                      Download {activeDocViewer.filename}
+                    </a>
+                  </div>
+                )}
               </div>
             </motion.div>
           </motion.div>
