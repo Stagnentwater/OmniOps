@@ -15,14 +15,14 @@ class QdrantConnectionManager:
     a long-lived singleton.
     """
 
-    def __init__(self, host: str, port: int) -> None:
+    def __init__(self, url: str, api_key: str | None = None) -> None:
         # We use the HTTP REST API by default.
-        self._client = QdrantClient(host=host, port=port)
+        self._client = QdrantClient(url=url, api_key=api_key)
 
     @classmethod
     def from_settings(cls, settings: QdrantSettings) -> QdrantConnectionManager:
         """Create a connection manager from application settings."""
-        return cls(host=settings.host, port=settings.port)
+        return cls(url=settings.url, api_key=settings.api_key)
 
     @property
     def client(self) -> QdrantClient:

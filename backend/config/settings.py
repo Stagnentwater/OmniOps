@@ -4,7 +4,7 @@ from functools import lru_cache
 import os
 from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, AliasChoices
 from dotenv import load_dotenv
 
 # Load .env file from project root into os.environ
@@ -21,6 +21,7 @@ class FastAPISettings(BaseSettings):
 
 class RedisSettings(BaseSettings):
     """Settings for Redis queue connectivity."""
+    url: str | None = Field(default=None, validation_alias="REDIS_URL")
     host: str = Field(default="redis", validation_alias="REDIS_HOST")
     port: int = Field(default=6379, validation_alias="REDIS_PORT")
     db: int = Field(default=0, validation_alias="REDIS_DB")
@@ -43,24 +44,39 @@ class QueueSettings(BaseSettings):
 
 class PostgresSettings(BaseSettings):
     """Settings for PostgreSQL connectivity."""
-    dsn: str = Field(..., validation_alias="POSTGRES_URL", description="Full Postgres DSN string")
+    url: str | None = Field(default=None, validation_alias="DATABASE_URL", description="Full Postgres DSN string")
+    host: str = Field(default="postgres", validation_alias="POSTGRES_HOST")
+    port: int = Field(default=5432, validation_alias="POSTGRES_PORT")
+    db: str = Field(default="omniops", validation_alias="POSTGRES_DB")
+    user: str = Field(default="omniops", validation_alias="POSTGRES_USER")
+    password: str = Field(default="omniops", validation_alias="POSTGRES_PASSWORD")
+
+    @property
+    def dsn(self) -> str:
+        if self.url:
+            return self.url
+        return f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.db}"
 
 
 class Neo4jSettings(BaseSettings):
     """Settings for Neo4j connectivity."""
     uri: str = Field(..., validation_alias="NEO4J_URI")
-    user: str = Field(default="neo4j", validation_alias="NEO4J_USER")
+    user: str = Field(default="neo4j", validation_alias=AliasChoices("NEO4J_USERNAME", "NEO4J_USER"))
     password: str = Field(..., validation_alias="NEO4J_PASSWORD")
 
 
 class QdrantSettings(BaseSettings):
     """Settings for Qdrant connectivity."""
-    host: str = Field(..., validation_alias="QDRANT_HOST")
+    url_override: str | None = Field(default=None, validation_alias="QDRANT_URL")
+    api_key: str | None = Field(default=None, validation_alias="QDRANT_API_KEY")
+    host: str = Field(default="qdrant", validation_alias="QDRANT_HOST")
     port: int = Field(default=6333, validation_alias="QDRANT_PORT")
 
     @property
     def url(self) -> str:
         """Build the base URL for Qdrant HTTP API."""
+        if self.url_override:
+            return self.url_override
         return f"http://{self.host}:{self.port}"
 
 

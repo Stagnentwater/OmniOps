@@ -12,11 +12,16 @@ def main() -> None:
     """Start the default RQ worker using Redis from environment settings."""
     logging.basicConfig(level=logging.INFO)
     settings = get_settings()
-    redis_connection = Redis(
-        host=settings.redis.host,
-        port=settings.redis.port,
-        db=settings.redis.db,
-    )
+    
+    if settings.redis.url:
+        redis_connection = Redis.from_url(settings.redis.url)
+    else:
+        redis_connection = Redis(
+            host=settings.redis.host,
+            port=settings.redis.port,
+            db=settings.redis.db,
+        )
+        
     import sys
     from rq.worker import SimpleWorker
     

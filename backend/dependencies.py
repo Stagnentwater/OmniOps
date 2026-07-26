@@ -38,7 +38,7 @@ def get_query_orchestrator() -> "QueryOrchestrator":
     # 1. Instantiate Storage/Vector Repos
     neo4j_conn = Neo4jConnectionManager(settings.neo4j.uri, settings.neo4j.user, settings.neo4j.password)
     graph_repo = Neo4jGraphRepository(neo4j_conn)
-    qdrant_conn = QdrantConnectionManager(settings.qdrant.host, settings.qdrant.port)
+    qdrant_conn = QdrantConnectionManager(url=settings.qdrant.url, api_key=settings.qdrant.api_key)
     vector_repo = QdrantVectorRepository(qdrant_conn)
     
     # 2. Instantiate Providers
@@ -62,7 +62,7 @@ def get_ingestion_orchestrator(job_id: str) -> IngestionOrchestrator:
     
     neo4j_conn = Neo4jConnectionManager(settings.neo4j.uri, settings.neo4j.user, settings.neo4j.password)
     graph_repo = Neo4jGraphRepository(neo4j_conn)
-    qdrant_conn = QdrantConnectionManager(settings.qdrant.host, settings.qdrant.port)
+    qdrant_conn = QdrantConnectionManager(url=settings.qdrant.url, api_key=settings.qdrant.api_key)
     vector_repo = QdrantVectorRepository(qdrant_conn)
     embedding_provider = SentenceTransformerEmbeddingProvider(settings.embedding.model_name)
     metadata_repo = MetadataRepository()

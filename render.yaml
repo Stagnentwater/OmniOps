@@ -1,0 +1,78 @@
+services:
+  - type: web
+    name: omniops-api
+    env: docker
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: FASTAPI_APP_NAME
+        value: OmniOps API
+      - key: FASTAPI_HOST
+        value: 0.0.0.0
+      - key: FASTAPI_PORT
+        value: 8000
+      - key: DATABASE_URL
+        sync: false
+      - key: NEO4J_URI
+        sync: false
+      - key: NEO4J_USERNAME
+        sync: false
+      - key: NEO4J_PASSWORD
+        sync: false
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        value: openai/gpt-4o-mini
+      - key: EMBEDDING_MODEL_NAME
+        value: BAAI/bge-m3
+      - key: STORAGE_BACKEND
+        value: local
+      - key: STORAGE_LOCAL_ROOT
+        value: /data/storage
+
+  - type: worker
+    name: omniops-worker
+    env: docker
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    dockerCommand: python worker.py
+    autoDeploy: true
+    envVars:
+      - key: FASTAPI_APP_NAME
+        value: OmniOps API
+      - key: FASTAPI_HOST
+        value: 0.0.0.0
+      - key: FASTAPI_PORT
+        value: 8000
+      - key: DATABASE_URL
+        sync: false
+      - key: NEO4J_URI
+        sync: false
+      - key: NEO4J_USERNAME
+        sync: false
+      - key: NEO4J_PASSWORD
+        sync: false
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        value: openai/gpt-4o-mini
+      - key: EMBEDDING_MODEL_NAME
+        value: BAAI/bge-m3
+      - key: STORAGE_BACKEND
+        value: local
+      - key: STORAGE_LOCAL_ROOT
+        value: /data/storage
