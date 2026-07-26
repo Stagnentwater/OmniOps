@@ -2,7 +2,7 @@ import os
 from sentence_transformers import SentenceTransformer
 
 def main():
-    model_name = "BAAI/bge-m3"
+    model_name = "sentence-transformers/all-MiniLM-L6-v2"
     base_dir = os.path.dirname(os.path.abspath(__file__))
     save_path = os.path.join(base_dir, "models", "embedding_model")
     
