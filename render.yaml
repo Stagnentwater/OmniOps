@@ -32,7 +32,7 @@ services:
       - key: OPENROUTER_MODEL
         value: openai/gpt-4o-mini
       - key: EMBEDDING_MODEL_NAME
-        value: BAAI/bge-m3
+        value: all-MiniLM-L6-v2
       - key: STORAGE_BACKEND
         value: local
       - key: STORAGE_LOCAL_ROOT
@@ -81,7 +81,7 @@ services:
       - key: OPENROUTER_MODEL
         value: openai/gpt-4o-mini
       - key: EMBEDDING_MODEL_NAME
-        value: BAAI/bge-m3
+        value: all-MiniLM-L6-v2
       - key: STORAGE_BACKEND
         value: local
       - key: STORAGE_LOCAL_ROOT

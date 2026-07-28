@@ -40,7 +40,7 @@ class EmbeddingProvider(ABC):
 class SentenceTransformerEmbeddingProvider(EmbeddingProvider):
     """Concrete embedding provider using the sentence-transformers library.
 
-    Designed to run models locally (e.g., BAAI/bge-m3).
+    Designed to run models locally (e.g., all-MiniLM-L6-v2).
     Lazy-loads the model on first use to speed up application startup.
     """
 

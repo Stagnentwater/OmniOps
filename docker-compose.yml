@@ -46,7 +46,7 @@ services:
       OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openai/gpt-4o-mini}
       STORAGE_BACKEND: local
       STORAGE_LOCAL_ROOT: /data/storage
-      EMBEDDING_MODEL_NAME: BAAI/bge-m3
+      EMBEDDING_MODEL_NAME: all-MiniLM-L6-v2
 
   worker:
     # NOTE: For the ET AI Hackathon, the RQ worker runs embedded inside the
@@ -90,7 +90,7 @@ services:
       OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openai/gpt-4o-mini}
       STORAGE_BACKEND: local
       STORAGE_LOCAL_ROOT: /data/storage
-      EMBEDDING_MODEL_NAME: BAAI/bge-m3
+      EMBEDDING_MODEL_NAME: all-MiniLM-L6-v2
     volumes:
       - storage_data:/data/storage
 

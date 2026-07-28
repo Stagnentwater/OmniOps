@@ -102,7 +102,7 @@ class StorageSettings(BaseSettings):
 class EmbeddingSettings(BaseSettings):
     """Settings for embedding model selection."""
     model_config = SettingsConfigDict(protected_namespaces=())
-    model_name: str = Field(default="BAAI/bge-m3", validation_alias="EMBEDDING_MODEL_NAME")
+    model_name: str = Field(default="all-MiniLM-L6-v2", validation_alias="EMBEDDING_MODEL_NAME")
 
 
 class Settings(BaseSettings):
