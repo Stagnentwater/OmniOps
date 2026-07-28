@@ -22,6 +22,8 @@ services:
       FASTAPI_APP_NAME: OmniOps API
       FASTAPI_HOST: 0.0.0.0
       FASTAPI_PORT: "8000"
+      # Set to "false" when using --profile standalone-worker
+      EMBED_WORKER: "true"
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_DB: "0"
@@ -47,6 +49,13 @@ services:
       EMBEDDING_MODEL_NAME: BAAI/bge-m3
 
   worker:
+    # NOTE: For the ET AI Hackathon, the RQ worker runs embedded inside the
+    # FastAPI process (EMBED_WORKER=true). This standalone worker service is
+    # preserved under a profile for production deployments where separating
+    # the worker is desired. Start it with:
+    #   docker compose --profile standalone-worker up
+    profiles:
+      - standalone-worker
     build:
       context: ./backend
       dockerfile: Dockerfile

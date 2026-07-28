@@ -37,7 +37,17 @@ services:
         value: local
       - key: STORAGE_LOCAL_ROOT
         value: /data/storage
+      - key: EMBED_WORKER
+        value: "true"
 
+  # ------------------------------------------------------------------
+  # DEPRECATED FOR HACKATHON: The RQ worker now runs embedded inside
+  # the omniops-api web service (controlled by EMBED_WORKER=true).
+  # This standalone worker definition is preserved for production
+  # deployments where separating the worker is desired.
+  # To use it, set EMBED_WORKER=false on the omniops-api service and
+  # enable this worker service in Render.
+  # ------------------------------------------------------------------
   - type: worker
     name: omniops-worker
     env: docker

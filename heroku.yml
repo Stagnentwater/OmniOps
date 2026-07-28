@@ -1,0 +1,11 @@
+# ------------------------------------------------------------------
+# DEPRECATED FOR HACKATHON: The RQ worker now runs embedded inside
+# the FastAPI process (EMBED_WORKER=true). This Heroku config is
+# preserved for production deployments that require a standalone
+# worker. See DEPLOYMENT.md for the current deployment model.
+# ------------------------------------------------------------------
+build:
+  docker:
+    worker: backend/Dockerfile
+run:
+  worker: python worker.py

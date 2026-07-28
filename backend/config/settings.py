@@ -17,6 +17,12 @@ class FastAPISettings(BaseSettings):
     app_name: str = Field(default="OmniOps API", validation_alias="FASTAPI_APP_NAME")
     host: str = Field(default="0.0.0.0", validation_alias="FASTAPI_HOST")
     port: int = Field(default=8000, validation_alias="FASTAPI_PORT")
+    embed_worker: bool = Field(
+        default=True,
+        validation_alias="EMBED_WORKER",
+        description="When true, start the RQ worker inside the FastAPI process. "
+                    "Set to false when running a standalone worker service.",
+    )
 
 
 class RedisSettings(BaseSettings):

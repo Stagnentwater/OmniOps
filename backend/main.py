@@ -1,5 +1,6 @@
 """OmniOps backend FastAPI application entrypoint."""
 
+import threading
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 import logging
@@ -18,6 +19,10 @@ logger = logging.getLogger(__name__)
 # Load settings immediately. This will fail fast if required env vars are missing.
 settings = get_settings()
 
+# Module-level guard to ensure the embedded worker starts exactly once per process,
+# even if Uvicorn reloads trigger multiple lifespan cycles.
+_worker_started = threading.Event()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -34,10 +39,39 @@ async def lifespan(app: FastAPI):
     # app.state.qdrant = QdrantConnectionManager(settings.qdrant)
     # app.state.postgres = PostgresConnectionManager(settings.postgres)
     
+    # --- Embedded RQ Worker ---
+    if settings.fastapi.embed_worker:
+        if not _worker_started.is_set():
+            from worker import start_worker  # Lazy import to avoid circular deps
+
+            worker_thread = threading.Thread(
+                target=start_worker,
+                daemon=True,
+                name="rq-worker",
+            )
+            worker_thread.start()
+            _worker_started.set()
+            app.state.worker_thread = worker_thread
+            logger.info(
+                "Embedded RQ worker started in daemon thread "
+                f"(thread={worker_thread.name}, daemon={worker_thread.daemon})."
+            )
+        else:
+            logger.info("Embedded RQ worker already running — skipping duplicate startup.")
+    else:
+        logger.info(
+            "EMBED_WORKER is disabled. RQ worker must be started separately "
+            "(e.g., 'python worker.py')."
+        )
+
     logger.info("OmniOps backend successfully initialized.")
     yield
     
     logger.info("Shutting down OmniOps backend...")
+    if hasattr(app.state, "worker_thread") and app.state.worker_thread.is_alive():
+        logger.info(
+            "Embedded RQ worker daemon thread will be terminated with the process."
+        )
     # TODO: Close connection pools
 
 

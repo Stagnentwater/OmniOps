@@ -1,0 +1,16 @@
+.venv
+venv
+__pycache__
+*.pyc
+.git
+.gitignore
+data
+models
+downloads
+.cache
+node_modules
+frontend/node_modules
+tests
+docs
+*.pdf
+*.ipynb
