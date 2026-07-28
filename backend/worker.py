@@ -21,6 +21,23 @@ from config.settings import get_settings
 logger = logging.getLogger(__name__)
 
 
+class EmbeddedWorker(SimpleWorker):
+    """RQ worker subclass safe to run in a non-main thread.
+
+    ``Worker.work()`` calls ``_install_signal_handlers()`` which uses
+    ``signal.signal()`` — only allowed in Python's main thread. This
+    subclass overrides that method with a no-op so the worker can run
+    inside a daemon thread (e.g., within the FastAPI process).
+
+    Inherits from ``SimpleWorker`` (no fork) so it works on all
+    platforms including Windows.
+    """
+
+    def _install_signal_handlers(self) -> None:  # noqa: D102
+        """No-op: signal handlers cannot be installed outside the main thread."""
+        pass
+
+
 def _create_redis_connection() -> Redis:
     """Create and verify a Redis connection using application settings.
 
@@ -53,14 +70,17 @@ def _create_redis_connection() -> Redis:
     return redis_connection
 
 
-def start_worker() -> None:
+def start_worker(*, embedded: bool = False) -> None:
     """Start the RQ worker. This is a **blocking** call.
 
     Creates a Redis connection, selects the appropriate worker class
-    for the current platform, and begins polling the configured queue.
+    for the current platform/mode, and begins polling the configured queue.
 
-    On Linux, ``Worker`` (fork-based) is used.
-    On Windows, ``SimpleWorker`` (in-process) is used.
+    Args:
+        embedded: When True, uses ``EmbeddedWorker`` (no signal handlers,
+                  no scheduler) so it can safely run in a daemon thread.
+                  When False (default), uses the standard platform worker
+                  (``Worker`` on Linux, ``SimpleWorker`` on Windows).
 
     This function never returns under normal operation.
     """
@@ -69,14 +89,21 @@ def start_worker() -> None:
     settings = get_settings()
     redis_connection = _create_redis_connection()
 
-    worker_class = SimpleWorker if sys.platform == "win32" else Worker
+    if embedded:
+        worker_class = EmbeddedWorker
+        # Scheduler spawns a separate process and also requires signal handling;
+        # OmniOps does not use scheduled/delayed jobs, so disable it.
+        with_scheduler = False
+    else:
+        worker_class = SimpleWorker if sys.platform == "win32" else Worker
+        with_scheduler = True
 
     logger.info(
         f"Starting RQ worker on queue: '{settings.queue.name}' "
-        f"(class={worker_class.__name__})"
+        f"(class={worker_class.__name__}, embedded={embedded})"
     )
     worker = worker_class([settings.queue.name], connection=redis_connection)
-    worker.work(with_scheduler=True)
+    worker.work(with_scheduler=with_scheduler)
 
 
 if __name__ == "__main__":

@@ -46,6 +46,7 @@ async def lifespan(app: FastAPI):
 
             worker_thread = threading.Thread(
                 target=start_worker,
+                kwargs={"embedded": True},
                 daemon=True,
                 name="rq-worker",
             )
