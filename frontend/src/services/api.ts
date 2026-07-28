@@ -2,8 +2,9 @@
  * Singleton API Client to handle all backend communication with FastAPI.
  */
 
-// Force IPv4 loopback to avoid Windows Node/Browser IPv6 resolution issues with uvicorn
-const API_BASE = "http://127.0.0.1:8002";
+// Force IPv4 loopback to avoid Windows Node/Browser IPv6 resolution issues with uvicorn locally
+// Use NEXT_PUBLIC_API_URL in production (e.g., Vercel)
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
 export class ApiClient {
   private static async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
