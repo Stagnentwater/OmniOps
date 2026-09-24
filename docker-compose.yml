@@ -9,6 +9,13 @@ services:
       - "8000:8000"
     volumes:
       - storage_data:/data/storage
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     depends_on:
       redis:
         condition: service_healthy
@@ -28,7 +35,7 @@ services:
       RQ_QUEUE_NAME: default
       RQ_JOB_TIMEOUT_SECONDS: "900"
       RQ_RETRY_MAX: "3"
-      RQ_RETRY_INTERVALS_SECONDS: "10,30,60"
+      RQ_RETRY_INTERVALS_SECONDS: "[10,30,60]"
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_DB: omniops
@@ -39,12 +46,15 @@ services:
       NEO4J_PASSWORD: password
       QDRANT_HOST: qdrant
       QDRANT_PORT: "6333"
-      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
-      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openai/gpt-4o-mini}
+      OPENROUTER_BASE_URL: "http://host.docker.internal:11434/v1"
+      OPENROUTER_API_KEY: "ollama-local"
+      OPENROUTER_MODEL: "llama3.2"
       STORAGE_BACKEND: local
       STORAGE_LOCAL_ROOT: /data/storage
-      EMBEDDING_MODEL_NAME: BAAI/bge-m3
+      EMBEDDING_MODEL_NAME: "all-MiniLM-L6-v2"
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+
 
   worker:
     build:
@@ -65,7 +75,7 @@ services:
       RQ_QUEUE_NAME: default
       RQ_JOB_TIMEOUT_SECONDS: "900"
       RQ_RETRY_MAX: "3"
-      RQ_RETRY_INTERVALS_SECONDS: "10,30,60"
+      RQ_RETRY_INTERVALS_SECONDS: "[10,30,60]"
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_DB: omniops
@@ -76,14 +86,24 @@ services:
       NEO4J_PASSWORD: password
       QDRANT_HOST: qdrant
       QDRANT_PORT: "6333"
-      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
-      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openai/gpt-4o-mini}
+      OPENROUTER_BASE_URL: "http://host.docker.internal:11434/v1"
+      OPENROUTER_API_KEY: "ollama-local"
+      OPENROUTER_MODEL: "llama3.2"
       STORAGE_BACKEND: local
       STORAGE_LOCAL_ROOT: /data/storage
-      EMBEDDING_MODEL_NAME: BAAI/bge-m3
+      EMBEDDING_MODEL_NAME: "all-MiniLM-L6-v2"
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+
     volumes:
       - storage_data:/data/storage
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
   postgres:
     image: postgres:16-alpine
@@ -134,6 +154,20 @@ services:
       - "6334:6334"
     volumes:
       - qdrant_data:/qdrant/storage
+
+  frontend:
+    image: node:20-alpine
+    container_name: omniops-frontend
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+    command: sh -c "npm install && npm run dev"
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
+    depends_on:
+      - api
 
 volumes:
   postgres_data:

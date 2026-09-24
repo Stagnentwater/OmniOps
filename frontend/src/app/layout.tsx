@@ -3,7 +3,7 @@ import "./globals.css";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "OmniOps | Industrial Intelligence Platform",
+  title: "VigilOps | Industrial Intelligence Platform",
   description: "Transform engineering documents into an evolving knowledge graph. Powered by GraphRAG.",
 };
 

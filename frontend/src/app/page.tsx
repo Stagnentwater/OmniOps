@@ -292,7 +292,7 @@ export default function UnifiedPage() {
           <div className="w-6 h-6 rounded-md bg-indigo-500/20 border border-indigo-500/50 flex items-center justify-center">
             <Terminal className="w-3.5 h-3.5 text-indigo-400" />
           </div>
-          <span className="font-bold text-sm tracking-wide text-[var(--color-text-primary)]">OMNIOPS V3</span>
+          <span className="font-bold text-sm tracking-wide text-[var(--color-text-primary)]">VIGILOPS</span>
           <span className="px-2 py-0.5 rounded text-[10px] font-mono font-medium bg-[var(--color-surface-elevated)] border border-[var(--color-border)] text-[var(--color-text-muted)] ml-auto">
             WORKSPACE
           </span>

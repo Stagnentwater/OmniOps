@@ -174,7 +174,7 @@ async def delete_document(
     settings = get_settings()
     
     # Delete from Qdrant
-    qdrant_conn = QdrantConnectionManager(settings.qdrant.host, settings.qdrant.port)
+    qdrant_conn = QdrantConnectionManager.from_settings(settings.qdrant)
     vector_repo = QdrantVectorRepository(qdrant_conn)
     vector_repo.delete_document(document_id)
     

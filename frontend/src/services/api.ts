@@ -3,7 +3,7 @@
  */
 
 // Force IPv4 loopback to avoid Windows Node/Browser IPv6 resolution issues with uvicorn
-const API_BASE = "http://127.0.0.1:8002";
+const API_BASE = "http://127.0.0.1:8000";
 
 export class ApiClient {
   private static async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {

@@ -100,6 +100,8 @@ class QdrantVectorRepository(VectorRepository):
         limit: int = 5,
         document_id: str | None = None,
     ) -> list[SearchResult]:
+        if not self._client.collection_exists(self._collection_name):
+            return []
         
         query_filter = None
         if document_id is not None:

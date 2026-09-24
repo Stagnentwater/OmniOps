@@ -20,6 +20,21 @@ class Neo4jConnectionManager:
         self._driver: neo4j.Driver = neo4j.GraphDatabase.driver(
             uri, auth=(user, password)
         )
+        self._initialize_schema()
+
+    def _initialize_schema(self) -> None:
+        """Initialize required database schemas such as full-text indices."""
+        cypher = (
+            "CREATE FULLTEXT INDEX entity_names IF NOT EXISTS "
+            "FOR (n:Asset|Component|Person|Location|Date|Parameter|FailureType|Regulation|Event|Entity) "
+            "ON EACH [n.canonical_name]"
+        )
+        try:
+            with self._driver.session() as session:
+                session.run(cypher)
+        except Exception as e:
+            # Log error but don't crash, the index might already exist or DB might be starting
+            pass
 
     @classmethod
     def from_settings(cls, settings: Neo4jSettings) -> Neo4jConnectionManager:

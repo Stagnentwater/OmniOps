@@ -380,16 +380,31 @@ def _expand_subgraph_tx(
 def _search_nodes_tx(
     tx: neo4j.ManagedTransaction, query: str, limit: int
 ) -> list[dict]:
-    """Read transaction: Search nodes by canonical_name (case-insensitive substring match)."""
-    # Simple fuzzy-like search on canonical_name for MVP.
-    # In production, use Neo4j Full-Text Search indices.
+    """Read transaction: Search nodes using the full-text index."""
+    # Lucene query syntax: split by spaces and append fuzzy operators if desired,
+    # but standard space-separated words default to OR matching which is great for discovery.
+    
+    # Clean the query to avoid Lucene syntax errors
+    clean_query = query.replace("'", "").replace('"', "").replace(":", "").replace("~", "").replace("*", "")
+    
+    # If the query is empty after cleaning, return early
+    if not clean_query.strip():
+        return []
+        
+    # Split into words and add fuzziness (~) to each word for better matching
+    words = [w for w in clean_query.split() if len(w) > 2]
+    if not words:
+        words = clean_query.split()
+    
+    lucene_query = " OR ".join([f"{w}~" for w in words])
+    
     cypher = (
-        "MATCH (n) "
-        "WHERE toLower(n.canonical_name) CONTAINS toLower($search_term) "
-        "RETURN properties(n) AS props "
+        "CALL db.index.fulltext.queryNodes('entity_names', $search_term) YIELD node, score "
+        "RETURN properties(node) AS props, score "
+        "ORDER BY score DESC "
         "LIMIT $limit"
     )
-    result = tx.run(cypher, search_term=query, limit=limit)
+    result = tx.run(cypher, search_term=lucene_query, limit=limit)
     return [dict(record["props"]) for record in result]
 
 

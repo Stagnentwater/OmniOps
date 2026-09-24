@@ -39,7 +39,7 @@ async def get_statistics(repo: MetadataRepository = Depends(get_metadata_repo)):
     # 2. Chunks (Qdrant)
     chunks_count = 0
     try:
-        q_conn = QdrantConnectionManager(settings.qdrant.host, settings.qdrant.port)
+        q_conn = QdrantConnectionManager.from_settings(settings.qdrant)
         if q_conn.client.collection_exists("omniops_chunks"):
             collection = q_conn.client.get_collection("omniops_chunks")
             chunks_count = collection.points_count

@@ -69,7 +69,7 @@ export default function GraphPage() {
     <div className="h-screen bg-[var(--color-surface)] dot-grid relative">
       {/* Back link */}
       <a href="/" className="absolute top-4 left-4 z-20 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--color-surface-elevated)]/80 backdrop-blur-sm border border-[var(--color-border)] text-xs font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors" style={{ fontFamily: 'var(--font-mono)' }}>
-        ← OmniOps
+        ← VigilOps
       </a>
 
       {/* Title */}
