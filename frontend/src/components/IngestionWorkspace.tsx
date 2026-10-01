@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { UploadCloud, File, Trash2, CheckCircle2, Circle, Loader2, Database, Network, GitMerge } from "lucide-react";
 import { ApiClient } from "@/services/api";
@@ -33,23 +33,70 @@ const STAGE_DESCRIPTIONS: Record<string, string> = {
   "VECTOR_PERSISTED": "Creating vector embeddings in Qdrant...",
 };
 
-interface IngestionWorkspaceProps {
+// ─── Indexed Assets List (Left column) ────────────────────────────────
+interface AssetListProps {
   documents: any[];
-  onDocumentAdded: () => void;
-  onDocumentDeleted: () => void;
+  onDeleteDocument: (id: string) => void;
 }
 
-export function IngestionWorkspace({ documents, onDocumentAdded, onDocumentDeleted }: IngestionWorkspaceProps) {
+export function AssetList({ documents, onDeleteDocument }: AssetListProps) {
+  const handleDelete = async (id: string) => {
+    if (!confirm("Delete this document and all its graph knowledge?")) return;
+    try {
+      await ApiClient.deleteDocument(id);
+      onDeleteDocument(id);
+    } catch (err) {
+      alert("Delete failed.");
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2 h-full overflow-y-auto">
+      <h3 className="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wider mb-1 shrink-0">
+        Indexed Assets
+      </h3>
+      {documents.length === 0 ? (
+        <div className="text-xs text-[var(--color-text-muted)] py-4 text-center bg-[var(--color-surface-elevated)] rounded-lg border border-[var(--color-border)] border-dashed">
+          No documents indexed yet.
+        </div>
+      ) : (
+        documents.map(doc => (
+          <div key={doc.id} className="flex items-center justify-between p-3 rounded-lg bg-[var(--color-surface-elevated)] border border-[var(--color-border)] group">
+            <div className="flex items-center gap-3 overflow-hidden">
+              <File className="w-4 h-4 text-emerald-400 shrink-0" />
+              <div className="flex flex-col overflow-hidden">
+                <span className="text-sm font-medium text-[var(--color-text-primary)] truncate">{doc.filename}</span>
+                <span className="text-[10px] text-[var(--color-text-muted)] font-mono truncate">{doc.id.substring(0, 12)}...</span>
+              </div>
+            </div>
+            <button 
+              onClick={(e) => { e.stopPropagation(); handleDelete(doc.id); }}
+              className="opacity-0 group-hover:opacity-100 p-1.5 text-red-400/70 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-all"
+              title="Delete document"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+// ─── Upload Zone with Drag-and-Drop (Right column) ────────────────────
+interface UploadZoneProps {
+  onDocumentAdded: () => void;
+}
+
+export function UploadZone({ onDocumentAdded }: UploadZoneProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [activeUploadId, setActiveUploadId] = useState<string | null>(null);
   const [currentStage, setCurrentStage] = useState<string>("JOB_CREATED");
   const [failed, setFailed] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const processFile = useCallback(async (file: File) => {
     setIsUploading(true);
     setFailed(false);
     setCurrentStage("JOB_CREATED");
@@ -58,24 +105,50 @@ export function IngestionWorkspace({ documents, onDocumentAdded, onDocumentDelet
       const res = await ApiClient.uploadDocument(file);
       const docId = res.document_id;
       setActiveUploadId(docId);
-      onDocumentAdded(); // refresh list
+      onDocumentAdded();
     } catch (err) {
       alert("Upload failed. See console.");
       console.error(err);
       setIsUploading(false);
-    } finally {
-      if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  }, [onDocumentAdded]);
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await processFile(file);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Delete this document and all its graph knowledge?")) return;
-    try {
-      await ApiClient.deleteDocument(id);
-      onDocumentDeleted();
-    } catch (err) {
-      alert("Delete failed.");
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const validExtensions = [".pdf", ".docx", ".csv", ".xlsx", ".xls"];
+    const ext = "." + file.name.split(".").pop()?.toLowerCase();
+    if (!validExtensions.includes(ext)) {
+      alert(`Unsupported file type: ${ext}. Supported: ${validExtensions.join(", ")}`);
+      return;
     }
+
+    await processFile(file);
   };
 
   // SSE tracking for active upload
@@ -125,6 +198,7 @@ export function IngestionWorkspace({ documents, onDocumentAdded, onDocumentDelet
   }, [activeUploadId, onDocumentAdded]);
 
 
+  // ─── Active pipeline UI ─────────────────────────────────────
   if (activeUploadId) {
     const currentIndex = STAGES.indexOf(currentStage);
     
@@ -208,18 +282,31 @@ export function IngestionWorkspace({ documents, onDocumentAdded, onDocumentDelet
     );
   }
 
+  // ─── Drag-and-drop upload zone ─────────────────────────────
   return (
-    <div className="flex flex-col gap-4">
-      {/* Upload Zone */}
+    <div className="flex flex-col gap-4 h-full">
       <div 
-        className="w-full border-2 border-dashed border-[var(--color-border)] rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all group"
+        className={`w-full flex-1 min-h-[200px] border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-all group ${
+          isDragOver
+            ? "border-indigo-500 bg-indigo-500/10 scale-[1.01]"
+            : "border-[var(--color-border)] hover:border-indigo-500/50 hover:bg-indigo-500/5"
+        }`}
         onClick={() => fileInputRef.current?.click()}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
       >
-        <div className="w-10 h-10 rounded-full bg-[var(--color-surface-elevated)] border border-[var(--color-border)] flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-          <UploadCloud className="w-5 h-5 text-indigo-400" />
+        <div className={`w-14 h-14 rounded-full bg-[var(--color-surface-elevated)] border border-[var(--color-border)] flex items-center justify-center mb-4 transition-transform ${
+          isDragOver ? "scale-110" : "group-hover:scale-110"
+        }`}>
+          <UploadCloud className={`w-6 h-6 ${isDragOver ? "text-indigo-300" : "text-indigo-400"}`} />
         </div>
-        <p className="text-sm font-medium text-[var(--color-text-primary)]">Upload Knowledge Document</p>
-        <p className="text-xs text-[var(--color-text-muted)] mt-1">PDF, DOCX, CSV, XLSX supported</p>
+        <p className="text-sm font-medium text-[var(--color-text-primary)]">
+          {isDragOver ? "Drop file to upload" : "Upload Knowledge Document"}
+        </p>
+        <p className="text-xs text-[var(--color-text-muted)] mt-1">
+          {isDragOver ? "Release to begin ingestion" : "Drag & drop or click to browse — PDF, DOCX, CSV, XLSX"}
+        </p>
         <input 
           type="file" 
           ref={fileInputRef} 
@@ -229,35 +316,22 @@ export function IngestionWorkspace({ documents, onDocumentAdded, onDocumentDelet
           disabled={isUploading} 
         />
       </div>
+    </div>
+  );
+}
 
-      {/* Document List */}
-      <div className="flex flex-col gap-2">
-        <h3 className="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wider mb-1">Indexed Assets</h3>
-        {documents.length === 0 ? (
-          <div className="text-xs text-[var(--color-text-muted)] py-4 text-center bg-[var(--color-surface-elevated)] rounded-lg border border-[var(--color-border)] border-dashed">
-            No documents indexed yet.
-          </div>
-        ) : (
-          documents.map(doc => (
-            <div key={doc.id} className="flex items-center justify-between p-3 rounded-lg bg-[var(--color-surface-elevated)] border border-[var(--color-border)] group">
-              <div className="flex items-center gap-3 overflow-hidden">
-                <File className="w-4 h-4 text-emerald-400 shrink-0" />
-                <div className="flex flex-col overflow-hidden">
-                  <span className="text-sm font-medium text-[var(--color-text-primary)] truncate">{doc.filename}</span>
-                  <span className="text-[10px] text-[var(--color-text-muted)] font-mono truncate">{doc.id.substring(0, 12)}...</span>
-                </div>
-              </div>
-              <button 
-                onClick={(e) => { e.stopPropagation(); handleDelete(doc.id); }}
-                className="opacity-0 group-hover:opacity-100 p-1.5 text-red-400/70 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-all"
-                title="Delete document"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-          ))
-        )}
-      </div>
+// ─── Legacy combined component (kept for backwards compatibility) ──────
+interface IngestionWorkspaceProps {
+  documents: any[];
+  onDocumentAdded: () => void;
+  onDocumentDeleted: () => void;
+}
+
+export function IngestionWorkspace({ documents, onDocumentAdded, onDocumentDeleted }: IngestionWorkspaceProps) {
+  return (
+    <div className="flex flex-col gap-4">
+      <UploadZone onDocumentAdded={onDocumentAdded} />
+      <AssetList documents={documents} onDeleteDocument={() => onDocumentDeleted()} />
     </div>
   );
 }

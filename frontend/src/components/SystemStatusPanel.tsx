@@ -126,15 +126,7 @@ export function SystemStatusPanel({ refreshToken = 0 }: SystemStatusPanelProps) 
   };
 
   return (
-    <div className="flex flex-col h-full bg-[var(--color-surface)] border-r border-[var(--color-border)] relative z-10 shadow-2xl shrink-0 w-[32.5%] overflow-hidden">
-      {/* Header */}
-      <div className="h-14 border-b border-[var(--color-border)] flex items-center px-5 gap-3 shrink-0 bg-[var(--color-surface-elevated)]/50">
-        <div className="w-6 h-6 rounded-md bg-emerald-500/20 border border-emerald-500/50 flex items-center justify-center">
-          <Activity className="w-3.5 h-3.5 text-emerald-400" />
-        </div>
-        <span className="font-bold text-sm tracking-wide text-[var(--color-text-primary)]">SYSTEM STATUS</span>
-      </div>
-
+    <div className="flex flex-col h-full overflow-hidden">
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-5">
         

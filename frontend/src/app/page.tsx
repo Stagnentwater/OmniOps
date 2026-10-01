@@ -1,18 +1,20 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { ApiClient } from "@/services/api";
-import { RetrievalGraph, GraphData } from "@/components/RetrievalGraph";
-import { RetrievalStepper } from "@/components/RetrievalStepper";
-import { IngestionWorkspace } from "@/components/IngestionWorkspace";
-import { SystemStatusPanel } from "@/components/SystemStatusPanel";
-import { 
-  Terminal, Search, Database, Share2, 
-  Settings, User, Code2, Globe, FileText, X, BookOpen, Download
-} from "lucide-react";
+import { GraphData } from "@/components/RetrievalGraph";
+import { NavRail, ViewId } from "@/components/NavRail";
+import { ChatView } from "@/components/ChatView";
+import { KnowledgeBaseView } from "@/components/KnowledgeBaseView";
+import { IngestionView } from "@/components/IngestionView";
+import { OverviewView } from "@/components/OverviewView";
+import { X, BookOpen, Download, FileText } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function UnifiedPage() {
+  // ─── Navigation State ──────────────────────────────────────
+  const [activeView, setActiveView] = useState<ViewId>("chat");
+
   // ─── Global State ─────────────────────────────────────────
   const [documents, setDocuments] = useState<any[]>([]);
   const [fullGraphData, setFullGraphData] = useState<GraphData | null>(null);
@@ -24,9 +26,8 @@ export default function UnifiedPage() {
   const [activeCitationPreview, setActiveCitationPreview] = useState<{source_text: string, document_id: string, page_index: number, chunk_id: string} | null>(null);
   const [hoveredCitationId, setHoveredCitationId] = useState<string | null>(null);
 
-  // ─── View Modes (Left Panel) ──────────────────────────────
+  // ─── View Modes ──────────────────────────────────────
   const [mode, setMode] = useState<"idle" | "ingesting" | "querying" | "answered">("idle");
-  const [idleTab, setIdleTab] = useState<"ingestion" | "history">("history");
   
   // ─── Session State ───────────────────────────────────────
   const [chatSessions, setChatSessions] = useState<any[]>([]);
@@ -115,7 +116,7 @@ export default function UnifiedPage() {
     setAnswer("");
     setCitations([]);
     setActiveMetadata(null);
-    setGraphViewMode("retrieval"); // Enter retrieval mode immediately
+    setGraphViewMode("retrieval");
 
     try {
       await ApiClient.queryStream(q, null, currentSessionId, (event) => {
@@ -131,7 +132,6 @@ export default function UnifiedPage() {
           setMode("idle");
           alert("Query failed: " + event.error);
         } else {
-          // As progressive metadata streams in, update activeMetadata
           if (event.metadata) {
             setActiveMetadata((prev: any) => ({ ...prev, ...event.metadata }));
           }
@@ -154,7 +154,7 @@ export default function UnifiedPage() {
         setActiveQuery(userMsg ? userMsg.content : "");
         setAnswer(asstMsg ? asstMsg.content : "");
         setCitations(asstMsg ? (asstMsg.citations || []) : []);
-        setActiveMetadata(null); // Metadata isn't persisted in standard chat msgs
+        setActiveMetadata(null);
         setActiveSessionId(sessionId);
         setCurrentStage("COMPLETED");
         setMode("answered");
@@ -180,9 +180,18 @@ export default function UnifiedPage() {
     }
   };
 
+  const handleNewChat = () => {
+    setMode("idle");
+    setActiveQuery("");
+    setAnswer("");
+    setCitations([]);
+    setActiveMetadata(null);
+    setActiveSessionId(null);
+    setGraphViewMode("global");
+  };
+
   // ─── Citation & Document Viewing ────────────────────────
   const handleCitationClick = async (citation: any) => {
-    // Show a source text preview panel with the citation's text
     setActiveCitationPreview({
       source_text: citation.source_text || "Source text not available.",
       document_id: citation.document_id,
@@ -200,7 +209,6 @@ export default function UnifiedPage() {
       
       const url = await ApiClient.getDocumentContentUrl(activeCitationPreview.document_id);
       
-      // Close the preview panel and open the full document viewer
       setActiveCitationPreview(null);
       
       setActiveDocViewer({
@@ -220,15 +228,29 @@ export default function UnifiedPage() {
     // Simple markdown bold parsing
     html = html.replace(/\*\*(.*?)\*\*/g, '<strong class="text-[var(--color-text-primary)] font-semibold">$1</strong>');
     
+    // Pre-process: expand grouped citations like [Context #1, Context #2, Context #5]
+    // into individual markers [Context #1][Context #2][Context #5]
+    html = html.replace(/\[((?:Context\s*#\d+(?:\s*,\s*)?)+)\]/gi, (match, inner) => {
+      const parts = inner.split(/\s*,\s*/);
+      if (parts.length > 1) {
+        return parts.map((p: string) => `[${p.trim()}]`).join('');
+      }
+      return match;
+    });
+
+    // Also handle grouped bare numbers like [1, 2, 5]
+    html = html.replace(/\[((?:\d+(?:\s*,\s*)?){2,})\]/g, (match, inner) => {
+      const parts = inner.split(/\s*,\s*/);
+      return parts.map((p: string) => `[${p.trim()}]`).join('');
+    });
+
     // Replace citation markers like [1], [2], or [Context #1] with interactive span elements
     html = html.replace(/\[(?:Context\s*#)?(\d+)\]/gi, (match, num) => {
       const idx = parseInt(num) - 1;
       const citation = citations[idx];
-      // If it's a hallucinated/invalid citation (because context is empty), just remove it from the UI
       if (!citation) return "";
       
       const chunkId = citation.chunk_id;
-      // We encode the chunk ID in the data attribute and let event delegation handle interaction
       return `<sup class="citation-marker cursor-pointer px-1 mx-0.5 rounded-sm bg-indigo-500/20 text-indigo-400 font-mono text-[10px] font-bold border border-indigo-500/30 hover:bg-indigo-500/40 hover:border-indigo-400 transition-colors" data-chunk-id="${chunkId}" data-idx="${idx}">[${num}]</sup>`;
     });
 
@@ -262,8 +284,7 @@ export default function UnifiedPage() {
     );
   };
 
-  // Map metadata document IDs to human readable names for the graph empty state
-  // We attach this directly to activeMetadata so RetrievalGraph can use it.
+  // Map metadata document IDs to human readable names for the graph
   const activeMetadataWithNames = useMemo(() => {
     if (!activeMetadata) return null;
     const docMap = new Map(documents.map(d => [d.id, d.filename]));
@@ -278,228 +299,112 @@ export default function UnifiedPage() {
     return metadata;
   }, [activeMetadata, documents]);
 
+  // ─── Ingestion callbacks ─────────────────────────────────
+  const handleIngestionDocAdded = () => {
+    fetchDocuments();
+    fetchGraphData();
+    setStatsRefreshToken(t => t + 1);
+  };
+
+  const handleIngestionDocDeleted = () => {
+    fetchDocuments();
+    fetchGraphData();
+    setStatsRefreshToken(t => t + 1);
+  };
+
   return (
     <div className="flex h-screen w-full bg-[var(--color-background)] overflow-hidden">
       
-      {/* ─── Column 1: System Status ────────────────────────────── */}
-      <SystemStatusPanel refreshToken={statsRefreshToken} />
+      {/* ─── Persistent Nav Rail ──────────────────────────────── */}
+      <NavRail activeView={activeView} onViewChange={setActiveView} />
 
-      {/* ─── Column 2: Workspace ────────────────────────────── */}
-      <div className="w-[32.5%] flex flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)] relative z-10 shadow-2xl shrink-0">
-        
-        {/* Header */}
-        <div className="h-14 border-b border-[var(--color-border)] flex items-center px-5 gap-3 shrink-0 bg-[var(--color-surface-elevated)]/50">
-          <div className="w-6 h-6 rounded-md bg-indigo-500/20 border border-indigo-500/50 flex items-center justify-center">
-            <Terminal className="w-3.5 h-3.5 text-indigo-400" />
-          </div>
-          <span className="font-bold text-sm tracking-wide text-[var(--color-text-primary)]">VIGILOPS</span>
-          <span className="px-2 py-0.5 rounded text-[10px] font-mono font-medium bg-[var(--color-surface-elevated)] border border-[var(--color-border)] text-[var(--color-text-muted)] ml-auto">
-            WORKSPACE
-          </span>
-        </div>
-
-        {/* Content Area */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-5 flex flex-col gap-6">
-          
-          <AnimatePresence mode="wait">
-            {mode === "idle" && (
-              <motion.div 
-                key="idle"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                className="flex-1"
-              >
-                <div className="flex items-center gap-4 border-b border-[var(--color-border)] pb-3 mb-5">
-                  <button 
-                    onClick={() => setIdleTab("history")}
-                    className={`text-sm font-semibold transition-colors ${idleTab === "history" ? "text-indigo-400" : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"}`}
-                  >
-                    Query History
-                  </button>
-                  <button 
-                    onClick={() => setIdleTab("ingestion")}
-                    className={`text-sm font-semibold transition-colors ${idleTab === "ingestion" ? "text-indigo-400" : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"}`}
-                  >
-                    Knowledge Ingestion
-                  </button>
-                </div>
-
-                {idleTab === "ingestion" ? (
-                  <>
-                    <div className="mb-6">
-                      <h2 className="text-lg font-semibold text-[var(--color-text-primary)] mb-1">Knowledge Ingestion</h2>
-                      <p className="text-xs text-[var(--color-text-muted)]">Upload technical documents to synthesize the industrial graph.</p>
-                    </div>
-                    <IngestionWorkspace 
-                      documents={documents}
-                      onDocumentAdded={() => {
-                        fetchDocuments();
-                        fetchGraphData();
-                        setStatsRefreshToken(t => t + 1);
-                      }}
-                      onDocumentDeleted={() => {
-                        fetchDocuments();
-                        fetchGraphData();
-                        setStatsRefreshToken(t => t + 1);
-                      }}
-                    />
-                  </>
-                ) : (
-                  <div className="flex flex-col gap-3 flex-1 overflow-y-auto pr-2">
-                    {chatSessions.length === 0 ? (
-                      <div className="text-xs text-[var(--color-text-muted)] py-4 text-center bg-[var(--color-surface-elevated)] rounded-lg border border-[var(--color-border)] border-dashed">
-                        No previous queries found.
-                      </div>
-                    ) : (
-                      chatSessions.map(session => (
-                        <div 
-                          key={session.id} 
-                          onClick={() => handleLoadSession(session.id)}
-                          className="flex flex-col gap-1.5 p-4 rounded-xl bg-[var(--color-surface-elevated)] border border-[var(--color-border)] hover:border-indigo-500/50 cursor-pointer transition-colors group relative"
-                        >
-                          <div className="flex items-start justify-between">
-                            <span className="text-sm font-medium text-[var(--color-text-primary)] line-clamp-2 pr-8">{session.title}</span>
-                            <button 
-                              onClick={(e) => handleDeleteSession(session.id, e)}
-                              className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1.5 text-red-400/70 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-all"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                          <span className="text-[10px] text-[var(--color-text-muted)] font-mono">{new Date(session.created_at).toLocaleString()}</span>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                )}
-              </motion.div>
-            )}
-
-            {(mode === "querying" || mode === "answered") && (
-              <motion.div 
-                key="query-active"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="flex-1 flex flex-col"
-              >
-                {/* Active Query Header */}
-                <div className="p-4 rounded-xl bg-[var(--color-surface-elevated)] border border-[var(--color-border)] mb-6 shadow-sm">
-                  <div className="flex items-start gap-3">
-                    <User className="w-4 h-4 text-[var(--color-text-muted)] mt-0.5" />
-                    <p className="text-sm font-medium text-[var(--color-text-primary)] leading-relaxed">
-                      {activeQuery}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Pipeline Stepper */}
-                <div className="mb-6">
-                  <RetrievalStepper currentStage={currentStage} metadata={activeMetadata} />
-                </div>
-
-                {/* Answer Display */}
-                {mode === "answered" && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="flex-1 bg-[var(--color-surface-elevated)] border border-[var(--color-border)] rounded-xl p-5 shadow-sm"
-                  >
-                    <div className="flex items-center gap-2 mb-4 pb-3 border-b border-[var(--color-border)]">
-                      <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
-                      <span className="text-xs font-bold tracking-wide uppercase text-[var(--color-text-primary)]">Synthesis Complete</span>
-                    </div>
-                    {renderAnswerWithCitations()}
-                  </motion.div>
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* Input Footer */}
-        <div className="p-5 border-t border-[var(--color-border)] bg-[var(--color-surface)]">
-          <form onSubmit={handleQuerySubmit} className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)] pointer-events-none" />
-            <input
-              type="text"
-              value={queryInput}
-              onChange={(e) => setQueryInput(e.target.value)}
-              placeholder="Query industrial knowledge base..."
-              disabled={mode === "querying"}
-              className="w-full bg-[var(--color-surface-elevated)] border border-[var(--color-border)] rounded-lg pl-10 pr-4 py-3 text-sm text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all disabled:opacity-50"
+      {/* ─── Main Content Area ────────────────────────────────── */}
+      <AnimatePresence mode="wait">
+        {activeView === "chat" && (
+          <motion.div
+            key="chat"
+            initial={{ opacity: 0, x: -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 8 }}
+            transition={{ duration: 0.15 }}
+            className="flex-1 flex overflow-hidden"
+          >
+            <ChatView
+              chatSessions={chatSessions}
+              activeSessionId={activeSessionId}
+              onLoadSession={handleLoadSession}
+              onDeleteSession={handleDeleteSession}
+              onNewChat={handleNewChat}
+              queryInput={queryInput}
+              onQueryInputChange={setQueryInput}
+              onQuerySubmit={handleQuerySubmit}
+              mode={mode}
+              activeQuery={activeQuery}
+              currentStage={currentStage}
+              activeMetadata={activeMetadata}
+              answer={answer}
+              citations={citations}
+              hoveredCitationId={hoveredCitationId}
+              onHoveredCitationIdChange={setHoveredCitationId}
+              onCitationClick={handleCitationClick}
+              renderAnswerWithCitations={renderAnswerWithCitations}
+              documents={documents}
             />
-          </form>
-          
-          {mode === "answered" && (
-            <div className="mt-4 flex justify-center">
-              <button
-                onClick={() => {
-                  setMode("idle");
-                  setActiveQuery("");
-                  setActiveMetadata(null);
-                  setGraphViewMode("global");
-                  setActiveSessionId(null);
-                }}
-                className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
-              >
-                Start New Query
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
+          </motion.div>
+        )}
 
-      {/* ─── Column 3: Knowledge Graph (35%) ────────────── */}
-      <div className="w-[35%] flex-1 relative bg-[var(--color-surface)]">
-        {/* Graph Modes Toggle (Top Left overlay on Graph) */}
-        <AnimatePresence>
-          {(mode === "querying" || mode === "answered") && (
-            <motion.div 
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="absolute top-4 left-4 z-20"
-            >
-              <div className="flex items-center p-1 bg-[var(--color-surface-elevated)]/80 backdrop-blur-md border border-[var(--color-border)] rounded-lg shadow-sm">
-                <button
-                  onClick={() => setGraphViewMode("global")}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                    graphViewMode === "global" 
-                      ? "bg-[var(--color-surface)] text-[var(--color-text-primary)] shadow-sm border border-[var(--color-border)]" 
-                      : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] border border-transparent"
-                  }`}
-                >
-                  <Globe className="w-3.5 h-3.5" />
-                  Global Network
-                </button>
-                <button
-                  onClick={() => setGraphViewMode("retrieval")}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                    graphViewMode === "retrieval" 
-                      ? "bg-[var(--color-surface)] text-indigo-400 shadow-sm border border-[var(--color-border)]" 
-                      : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] border border-transparent"
-                  }`}
-                >
-                  <Search className="w-3.5 h-3.5" />
-                  Retrieval Context
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {activeView === "knowledge" && (
+          <motion.div
+            key="knowledge"
+            initial={{ opacity: 0, x: -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 8 }}
+            transition={{ duration: 0.15 }}
+            className="flex-1 flex overflow-hidden"
+          >
+            <KnowledgeBaseView
+              fullGraphData={fullGraphData}
+              metadata={activeMetadataWithNames}
+              graphViewMode={graphViewMode}
+              hoveredCitationId={hoveredCitationId}
+              onGraphViewModeChange={setGraphViewMode}
+              onRefreshGraph={fetchGraphData}
+            />
+          </motion.div>
+        )}
 
-        <RetrievalGraph 
-          fullGraphData={fullGraphData}
-          metadata={activeMetadataWithNames} 
-          mode={graphViewMode}
-          hoveredCitationId={hoveredCitationId}
-          onRefresh={fetchGraphData}
-        />
-      </div>
+        {activeView === "ingestion" && (
+          <motion.div
+            key="ingestion"
+            initial={{ opacity: 0, x: -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 8 }}
+            transition={{ duration: 0.15 }}
+            className="flex-1 flex overflow-hidden"
+          >
+            <IngestionView
+              documents={documents}
+              onDocumentAdded={handleIngestionDocAdded}
+              onDocumentDeleted={handleIngestionDocDeleted}
+            />
+          </motion.div>
+        )}
 
-      {/* ─── Citation Source Preview Panel ────────────────────── */}
+        {activeView === "overview" && (
+          <motion.div
+            key="overview"
+            initial={{ opacity: 0, x: -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 8 }}
+            transition={{ duration: 0.15 }}
+            className="flex-1 flex overflow-hidden"
+          >
+            <OverviewView refreshToken={statsRefreshToken} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── Citation Source Preview Modal ────────────────────── */}
       <AnimatePresence>
         {activeCitationPreview && (
           <motion.div 
@@ -573,7 +478,6 @@ export default function UnifiedPage() {
               {/* Modal Header */}
               <div className="h-12 border-b border-[var(--color-border)] bg-[var(--color-surface-elevated)] flex items-center justify-between px-4 shrink-0">
                 <div className="flex items-center gap-4 text-[var(--color-text-primary)]">
-                  {/* Option to download on the top left corner */}
                   <a 
                     href={activeDocViewer.url} 
                     download={activeDocViewer.filename}
