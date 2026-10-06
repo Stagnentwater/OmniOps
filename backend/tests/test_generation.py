@@ -3,7 +3,7 @@
 import unittest
 
 from retrieval.retrieval_models import RetrievalContext, RetrievedChunk
-from generation.generation_models import PromptPackage, RawGeneration
+from generation.generation_models import ConversationTurn, PromptPackage, RawGeneration
 from generation.prompt_builder import PromptBuilder
 from generation.llm_provider import LLMProvider
 from generation.validator import AnswerValidator
@@ -14,8 +14,10 @@ class FakeLLMProvider(LLMProvider):
     """Mock LLM provider that returns predetermined strings."""
     def __init__(self, mock_response: str):
         self.mock_response = mock_response
+        self.prompt_packages: list[PromptPackage] = []
 
     def generate(self, prompt_package: PromptPackage) -> RawGeneration:
+        self.prompt_packages.append(prompt_package)
         return RawGeneration(
             raw_response=self.mock_response,
             metadata={"model": "fake-model-1", "tokens": 42}
@@ -68,6 +70,26 @@ class TestPromptBuilder(unittest.TestCase):
         # Mapping should link correctly
         self.assertEqual(mapping[1].chunk_id, "chunk-uuid-1")
         self.assertEqual(mapping[2].chunk_id, "chunk-uuid-2")
+
+    def test_build_keeps_conversation_history_out_of_evidence_mapping(self):
+        history = (
+            ConversationTurn(role="user", content="Tell me about Pump P-301."),
+            ConversationTurn(
+                role="assistant",
+                content="It is in Area A. [Context #1]",
+            ),
+        )
+
+        package, mapping = self.builder.build(
+            self.context,
+            conversation_history=history,
+        )
+
+        self.assertIn("User: Tell me about Pump P-301.", package.conversation_history)
+        self.assertIn("Assistant: It is in Area A. [Context #1]", package.conversation_history)
+        self.assertNotIn("Tell me about Pump P-301.", package.formatted_context)
+        self.assertEqual(package.metadata["num_conversation_turns"], 2)
+        self.assertEqual(set(mapping), {1, 2})
 
 
 class TestAnswerValidator(unittest.TestCase):
@@ -140,6 +162,27 @@ class TestGenerationService(unittest.TestCase):
         self.assertEqual(len(result.answer.citations), 1)
         self.assertEqual(result.answer.citations[0].chunk_id, "c-1")
         self.assertEqual(result.answer.answer_text, "Here is the answer. [Context #1]")
+
+    def test_orchestration_passes_history_separately_to_llm_provider(self):
+        context = RetrievalContext(
+            query="What maintenance does it need?",
+            chunks=(RetrievedChunk("c-1", "d-1", "text1", 0.9, 1, None, {}),),
+            entities=(),
+            relationships=(),
+        )
+        fake_llm = FakeLLMProvider("The pump needs inspection. [Context #1]")
+        service = GenerationService(llm_provider=fake_llm)
+
+        service.generate_answer(
+            context,
+            conversation_history=(
+                ConversationTurn(role="user", content="Tell me about Pump P-301."),
+            ),
+        )
+
+        prompt_package = fake_llm.prompt_packages[0]
+        self.assertIn("User: Tell me about Pump P-301.", prompt_package.conversation_history)
+        self.assertNotIn("Tell me about Pump P-301.", prompt_package.formatted_context)
 
 if __name__ == "__main__":
     unittest.main()

@@ -2,7 +2,15 @@
 
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
+
+
+@dataclass(frozen=True)
+class ConversationTurn:
+    """A prior chat turn supplied only for conversational reference resolution."""
+
+    role: Literal["user", "assistant"]
+    content: str
 
 
 @dataclass(frozen=True)
@@ -13,6 +21,7 @@ class PromptPackage:
     user_prompt: str
     formatted_context: str
     metadata: dict[str, Any]
+    conversation_history: str = ""
 
 
 @dataclass(frozen=True)

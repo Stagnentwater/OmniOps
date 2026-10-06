@@ -37,7 +37,10 @@ async def submit_query(
 ) -> QueryResponse:
     """Execute end-to-end Retrieval and Generation."""
     # Run the real query orchestrator
-    result = orchestrator.answer_query(request.query)
+    result = orchestrator.answer_query(
+        request.query,
+        session_id=request.session_id,
+    )
     
     citations = [
         CitationItem(
@@ -66,11 +69,19 @@ async def stream_query(
     if not session_id:
         session_id = chat_repo.create_session()
         
-    chat_repo.add_message(session_id=session_id, role="user", content=request.query)
+    user_message_id = chat_repo.add_message(
+        session_id=session_id,
+        role="user",
+        content=request.query,
+    )
     
     def run_query():
         try:
-            orchestrator.answer_query(request.query, session_id=session_id)
+            orchestrator.answer_query(
+                request.query,
+                session_id=session_id,
+                history_exclude_message_id=user_message_id,
+            )
         except Exception:
             pass # Handled internally and FAILED event is emitted
 

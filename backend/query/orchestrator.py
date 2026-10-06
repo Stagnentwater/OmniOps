@@ -3,10 +3,12 @@
 from __future__ import annotations
 import logging
 import time
-from utils.event_bus import bus
-from retrieval.service import RetrievalService
+
+from database.chat_repository import ChatRepository
+from generation.generation_models import ConversationTurn, GenerationResult
 from generation.service import GenerationService
-from generation.generation_models import GenerationResult
+from retrieval.service import RetrievalService
+from utils.event_bus import bus
 
 logger = logging.getLogger(__name__)
 
@@ -21,11 +23,21 @@ class QueryOrchestrator:
         self,
         retrieval_service: RetrievalService,
         generation_service: GenerationService,
+        chat_repository: ChatRepository | None = None,
+        conversation_history_limit: int | None = None,
     ) -> None:
         self._retrieval_service = retrieval_service
         self._generation_service = generation_service
+        self._chat_repository = chat_repository
+        self._conversation_history_limit = conversation_history_limit
 
-    def answer_query(self, query: str, limit: int = 5, session_id: str | None = None) -> GenerationResult:
+    def answer_query(
+        self,
+        query: str,
+        limit: int = 5,
+        session_id: str | None = None,
+        history_exclude_message_id: str | None = None,
+    ) -> GenerationResult:
         """Execute the end-to-end read path."""
         def emit(stage: str, data: dict | None = None):
             if session_id:
@@ -73,11 +85,19 @@ class QueryOrchestrator:
                 }
             })
             logger.info(f"Retrieval Complete: {len(context.chunks)} chunks, {len(context.entities)} entities.")
+
+            conversation_history = self._load_conversation_history(
+                session_id=session_id,
+                exclude_message_id=history_exclude_message_id,
+            )
             
             emit("BUILDING_PROMPT")
             emit("GENERATING_RESPONSE")
             # 2. Generate reasoned answer strictly from context
-            result = self._generation_service.generate_answer(context)
+            result = self._generation_service.generate_answer(
+                context,
+                conversation_history=conversation_history,
+            )
             emit("VALIDATING_CITATIONS")
             logger.info("Generation Complete.")
             
@@ -124,3 +144,35 @@ class QueryOrchestrator:
             logger.error(f"Query Pipeline failed: {e}")
             emit("FAILED", {"error": str(e)})
             raise
+
+    def _load_conversation_history(
+        self,
+        session_id: str | None,
+        exclude_message_id: str | None,
+    ) -> tuple[ConversationTurn, ...]:
+        """Load safe, bounded prior turns without making them retrievable evidence."""
+        if (
+            session_id is None
+            or self._chat_repository is None
+            or self._conversation_history_limit is None
+        ):
+            return ()
+
+        messages = self._chat_repository.get_recent_messages(
+            session_id=session_id,
+            limit=self._conversation_history_limit,
+            exclude_message_id=exclude_message_id,
+        )
+        turns: list[ConversationTurn] = []
+        for message in messages:
+            if message.role not in {"user", "assistant"}:
+                logger.warning(
+                    "Skipping unsupported role in conversation history for session %s.",
+                    session_id,
+                )
+                continue
+            if not message.content.strip():
+                continue
+            turns.append(ConversationTurn(role=message.role, content=message.content))
+
+        return tuple(turns)

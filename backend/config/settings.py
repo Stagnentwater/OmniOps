@@ -19,6 +19,16 @@ class FastAPISettings(BaseSettings):
     port: int = Field(default=8000, validation_alias="FASTAPI_PORT")
 
 
+class QuerySettings(BaseSettings):
+    """Settings for query-time conversational context."""
+
+    conversation_history_limit: int = Field(
+        default=10,
+        ge=1,
+        validation_alias="CONVERSATION_HISTORY_LIMIT",
+    )
+
+
 class RedisSettings(BaseSettings):
     """Settings for Redis queue connectivity."""
     url: str | None = Field(default=None, validation_alias="REDIS_URL")
@@ -105,6 +115,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_nested_delimiter="__", env_file=(".env", "../.env"), extra="ignore")
 
     fastapi: FastAPISettings = Field(default_factory=FastAPISettings)
+    query: QuerySettings = Field(default_factory=QuerySettings)
     redis: RedisSettings = Field(default_factory=RedisSettings)
     queue: QueueSettings = Field(default_factory=QueueSettings)
     postgres: PostgresSettings = Field(default_factory=PostgresSettings)  # Required

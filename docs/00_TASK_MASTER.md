@@ -1,7 +1,7 @@
 # 00_TASK_MASTER.md
 
 # OmniOps Development Task Master
-Version: 1.1.0
+Version: 1.5.0
 Status: Living Development Plan
 
 > This document is the execution roadmap for OmniOps.
@@ -21,11 +21,15 @@ Status: Living Development Plan
 
 # Current Status
 
-Current Phase: Completed MVP Integration
+Current Phase: Version 1.5 — Intelligence and Reliability
 
-Current Sprint: None
+Current Sprint: Version 1.5 P1 — Automated Quality Gate
 
-Current Task: Final Review
+Current Task: V15-TEST-001
+
+Roadmap Source:
+- `docs/Version1.md` is the current roadmap source for the next implementation phase.
+- `docs/06_VERSION_2_DESC.md` is explicitly deferred. It must not be used to select or redefine Version 1.5 tasks.
 
 Completed Tasks:
 - [x] FOUND-001
@@ -76,6 +80,7 @@ Completed Tasks:
 - [x] RET-001
 - [x] GEN-001
 - [x] INT-001
+- [x] V15-CONV-001
 
 Blocked Tasks:
 - None
@@ -643,6 +648,251 @@ Tasks:
 - DEP-002 Production configuration
 - DEP-003 CI/CD
 - DEP-004 Cloud-portable deployment
+
+---
+
+# PHASE 15 - Version 1.5 Intelligence and Reliability
+
+Scope source: `docs/Version1.md` section 5 and the v1.5 roadmap. This phase extends the existing knowledge-first architecture; it does not begin Version 2 visual-platform work.
+
+## V15-CONV-001
+
+Title: Conversation Remembrance
+
+Objective:
+Provide bounded, ordered prior-turn context to a query within an existing chat session, without treating chat history as evidence or changing citation provenance.
+
+Prerequisites:
+- Existing `chat_sessions` and `chat_messages` persistence
+- Existing retrieval, generation, and citation-validation pipeline
+
+Files to Create / Modify:
+- `backend/config/settings.py`
+- `backend/database/chat_repository.py`
+- `backend/dependencies.py`
+- `backend/query/orchestrator.py`
+- `backend/api/routes/query.py`
+- `backend/generation/generation_models.py`
+- `backend/generation/prompt_builder.py`
+- `backend/generation/service.py`
+- `backend/generation/openrouter_provider.py`
+- `backend/generation/ollama_provider.py`
+- `backend/tests/test_generation.py`
+- `backend/tests/test_query_orchestrator.py`
+
+Implementation Notes:
+- Retrieve only a bounded window of preceding messages, in chronological order, and exclude the newly persisted user message.
+- Make the history limit configuration-driven.
+- Label history as non-authoritative conversational context. It may resolve references, but factual claims must remain grounded in the current retrieved evidence and use current `[Context #N]` citations.
+- Keep history out of the citation mapping and preserve the existing synchronous and SSE API contracts.
+
+Acceptance Criteria:
+- A streaming query with a session includes prior conversation turns in the LLM prompt.
+- The current user question is not duplicated as a prior turn.
+- No history message can create or alter a citation mapping.
+- A query without a session behaves as before.
+- Unit tests cover ordering, bounds, prompt separation, and orchestration.
+
+Evaluation:
+- Run the focused generation and query-orchestrator unit tests.
+- Run the existing backend test suite to detect regressions. Its baseline currently has 34 unrelated errors because in-memory graph and vector test doubles do not implement the existing `delete_document` abstract-interface method; repair is tracked in V15-TEST-001.
+
+Suggested Commit Message:
+feat(chat): add bounded conversation remembrance
+
+Next:
+V15-TEST-001
+
+---
+
+## V15-TEST-001
+
+Title: Version 1.5 Automated Quality Gate
+
+Objective:
+Establish repeatable unit coverage for the v1.5 services and make the backend test command part of the implementation workflow.
+
+Prerequisites:
+- V15-CONV-001
+
+Acceptance Criteria:
+- New v1.5 services have isolated unit tests with infrastructure fakes.
+- The documented backend test command runs without external databases.
+- Existing in-memory graph and vector test doubles implement all current repository abstract methods, including `delete_document`.
+
+Next:
+V15-INTENT-001
+
+---
+
+## V15-INTENT-001
+
+Title: Query Intent Detection
+
+Objective:
+Classify supported industrial query intents before retrieval, following `05_RETRIEVAL_ENGINE.md` Stage 1.
+
+Prerequisites:
+- V15-TEST-001
+
+Acceptance Criteria:
+- Intent is represented in the retrieval context.
+- Classification is testable and does not let the LLM query storage directly.
+
+Next:
+V15-ASSET-001
+
+---
+
+## V15-ASSET-001
+
+Title: Asset Detection
+
+Objective:
+Resolve query-referenced assets through the graph before graph expansion, following `05_RETRIEVAL_ENGINE.md` Stage 2.
+
+Prerequisites:
+- V15-INTENT-001
+
+Acceptance Criteria:
+- Known assets are detected with deterministic, traceable candidates.
+- Unknown or ambiguous assets preserve the existing safe retrieval fallback.
+
+Next:
+V15-IMG-ARCH-001
+
+---
+
+## V15-IMG-ARCH-001
+
+Title: Image Ingestion Architecture Approval
+
+Objective:
+Resolve the image-ingestion architecture before implementation because the Version 1 proposal introduces OpenCV and vision-model processing not yet locked by the core architecture.
+
+Prerequisites:
+- V15-ASSET-001
+
+Status:
+- Requires explicit architecture approval before code is written.
+
+Decision Required:
+- Vision provider/model, image preprocessing scope, P&ID symbol-recognition approach, supported image formats, safety/cost controls, and the canonical `DocumentContent` representation for image evidence.
+
+Next:
+V15-IMG-001, after approval
+
+---
+
+## V15-IMG-001
+
+Title: Image-to-Knowledge Ingestion MVP
+
+Objective:
+Add approved image parsing to the existing ingestion pipeline and preserve original-image storage and provenance.
+
+Prerequisites:
+- V15-IMG-ARCH-001 approved
+
+Acceptance Criteria:
+- Image evidence follows the standard ingestion lifecycle and is traceable through citations.
+- Existing PDF, DOCX, CSV, and XLSX ingestion remains unchanged.
+
+Next:
+V15-RANK-001
+
+---
+
+## V15-RANK-001
+
+Title: Evidence Ranking
+
+Objective:
+Implement the explicit cross-source ranking stage defined in `05_RETRIEVAL_ENGINE.md` Stage 6.
+
+Prerequisites:
+- V15-ASSET-001
+
+Acceptance Criteria:
+- Ranking uses documented, explainable retrieval signals and does not alter citation provenance.
+- Ranking behavior is covered by deterministic tests.
+
+Next:
+V15-POOL-001
+
+---
+
+## V15-POOL-001
+
+Title: Connection Lifecycle Management
+
+Objective:
+Move database-client lifecycle management to application startup/shutdown while retaining dependency injection and compatibility with the current deployment model.
+
+Prerequisites:
+- V15-TEST-001
+
+Acceptance Criteria:
+- Clients are reused safely and released during shutdown.
+- Health, ingestion, retrieval, and query behavior remain regression-tested.
+
+Next:
+V15-QUEUE-001
+
+---
+
+## V15-QUEUE-001
+
+Title: RQ Ingestion Execution Review
+
+Objective:
+Restore Redis/RQ-backed ingestion where supported, retaining the documented Windows-compatible behavior for local development.
+
+Prerequisites:
+- V15-POOL-001
+
+Acceptance Criteria:
+- Deployment mode uses idempotent, retryable RQ jobs.
+- Local Windows development retains a documented, tested compatible execution path.
+
+Next:
+V15-SANDBOX-ARCH-001
+
+---
+
+## V15-SANDBOX-ARCH-001
+
+Title: Calculation Sandbox Security Approval
+
+Objective:
+Resolve the execution-isolation design before writing calculation code, because the Version 1 proposal introduces untrusted code execution and new security dependencies.
+
+Prerequisites:
+- V15-RANK-001
+
+Status:
+- Requires explicit architecture and security approval before code is written.
+
+Decision Required:
+- Isolation runtime, operating-system limits, dependency allowlist, network/filesystem controls, audit trail, and failure behavior.
+
+Next:
+V15-SANDBOX-001, after approval
+
+---
+
+## V15-SANDBOX-001
+
+Title: Deterministic Calculation Service
+
+Objective:
+Implement the approved calculation path and pass computed, auditable results into the generation context.
+
+Prerequisites:
+- V15-SANDBOX-ARCH-001 approved
+
+Next:
+Future Version 1.5 maintenance work or explicitly approved Version 3 drafting work
 
 ---
 

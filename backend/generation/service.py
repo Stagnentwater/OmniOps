@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 import logging
+from collections.abc import Sequence
 
 from retrieval.retrieval_models import RetrievalContext
-from generation.generation_models import GenerationResult
+from generation.generation_models import ConversationTurn, GenerationResult
 from generation.prompt_builder import PromptBuilder
 from generation.llm_provider import LLMProvider
 from generation.validator import AnswerValidator
@@ -28,11 +29,18 @@ class GenerationService:
         self._validator = validator or AnswerValidator()
         self._logger = logging.getLogger(__name__)
 
-    def generate_answer(self, context: RetrievalContext) -> GenerationResult:
+    def generate_answer(
+        self,
+        context: RetrievalContext,
+        conversation_history: Sequence[ConversationTurn] = (),
+    ) -> GenerationResult:
         """Process the retrieval context to generate a validated answer."""
         
         # 1. Map context and build prompt string
-        prompt_package, context_mapping = self._prompt_builder.build(context)
+        prompt_package, context_mapping = self._prompt_builder.build(
+            context,
+            conversation_history=conversation_history,
+        )
         
         try:
             # 2. Execute LLM inference (infrastructure-agnostic)

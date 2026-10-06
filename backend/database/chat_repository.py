@@ -181,6 +181,67 @@ class ChatRepository:
             for row in rows
         ]
 
+    def get_recent_messages(
+        self,
+        session_id: str,
+        limit: int,
+        exclude_message_id: str | None = None,
+    ) -> list[ChatMessage]:
+        """Return a bounded, chronological window of messages for one session.
+
+        ``exclude_message_id`` lets a caller omit the just-persisted user message,
+        keeping the current question separate from historical conversation context.
+        """
+        if limit < 1:
+            raise ValueError("limit must be greater than zero")
+
+        query = """
+            SELECT message_id, session_id, role, content, citations, created_at
+            FROM (
+                SELECT message_id, session_id, role, content, citations, created_at
+                FROM chat_messages
+                WHERE session_id = %s
+                ORDER BY created_at DESC, message_id DESC
+                LIMIT %s
+            ) AS recent_messages
+            ORDER BY created_at ASC, message_id ASC
+        """
+        parameters: list[object] = [session_id, limit]
+        if exclude_message_id is not None:
+            query = """
+                SELECT message_id, session_id, role, content, citations, created_at
+                FROM (
+                    SELECT message_id, session_id, role, content, citations, created_at
+                    FROM chat_messages
+                    WHERE session_id = %s AND message_id <> %s
+                    ORDER BY created_at DESC, message_id DESC
+                    LIMIT %s
+                ) AS recent_messages
+                ORDER BY created_at ASC, message_id ASC
+            """
+            parameters = [session_id, exclude_message_id, limit]
+
+        with self._connect() as connection:
+            self._ensure_tables(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    query,
+                    parameters,
+                )
+                rows = cursor.fetchall()
+
+        return [
+            ChatMessage(
+                message_id=row["message_id"],
+                session_id=row["session_id"],
+                role=row["role"],
+                content=row["content"],
+                citations=row["citations"] if row["citations"] else [],
+                created_at=row["created_at"],
+            )
+            for row in rows
+        ]
+
     def delete_session(self, session_id: str) -> None:
         with self._connect() as connection:
             self._ensure_tables(connection)

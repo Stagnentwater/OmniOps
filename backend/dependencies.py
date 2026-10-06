@@ -4,6 +4,7 @@ from fastapi import Request
 
 from config.settings import get_settings
 from database.repositories import MetadataRepository
+from database.chat_repository import ChatRepository
 from graph.neo4j_repository import Neo4jGraphRepository
 from graph.neo4j_connection import Neo4jConnectionManager
 from graph.query_service import GraphQueryService
@@ -55,7 +56,12 @@ def get_query_orchestrator() -> "QueryOrchestrator":
         validator=AnswerValidator()
     )
     
-    return QueryOrchestrator(retrieval_service, generation_service)
+    return QueryOrchestrator(
+        retrieval_service=retrieval_service,
+        generation_service=generation_service,
+        chat_repository=ChatRepository(),
+        conversation_history_limit=settings.query.conversation_history_limit,
+    )
 
 def get_ingestion_orchestrator(job_id: str) -> IngestionOrchestrator:
     settings = get_settings()
