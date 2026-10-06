@@ -88,6 +88,28 @@ class InMemoryGraphRepository(GraphRepository):
             else:
                 self._edges[key] = edge_props
 
+    def delete_document(self, document_id: str) -> None:
+        """Remove graph records owned by a document, matching production semantics."""
+        node_ids_to_delete = {
+            node_id
+            for node_id, properties in self._nodes.items()
+            if properties.get("document_id") == document_id
+        }
+        self._edges = {
+            key: properties
+            for key, properties in self._edges.items()
+            if (
+                properties.get("document_id") != document_id
+                and key[0] not in node_ids_to_delete
+                and key[2] not in node_ids_to_delete
+            )
+        }
+        self._nodes = {
+            node_id: properties
+            for node_id, properties in self._nodes.items()
+            if node_id not in node_ids_to_delete
+        }
+
     def get_entity(self, entity_id: str) -> dict | None:
         return dict(self._nodes[entity_id]) if entity_id in self._nodes else None
 
@@ -372,6 +394,39 @@ class TestIdempotency(unittest.TestCase):
 
         node = self.repo.get_entity("ent-1")
         self.assertEqual(node["confidence"], 0.95)
+
+
+class TestDocumentDeletion(unittest.TestCase):
+    """Verify the in-memory double preserves the deletion contract."""
+
+    def test_delete_document_removes_owned_nodes_and_relationships(self):
+        repo = InMemoryGraphRepository()
+        source = _make_entity(entity_id="ent-a1")
+        target = _make_entity(entity_id="ent-a2", entity_type="component")
+        relationship = _make_relationship(
+            source_entity_id="ent-a1",
+            target_entity_id="ent-a2",
+        )
+        repo.persist_knowledge_package(
+            _make_package(
+                document_id="doc-a",
+                entities=(source, target),
+                relationships=(relationship,),
+            )
+        )
+        retained = _make_entity(entity_id="ent-b1", canonical_name="Pump P-302")
+        repo.persist_knowledge_package(
+            _make_package(document_id="doc-b", entities=(retained,))
+        )
+
+        repo.delete_document("doc-a")
+
+        self.assertIsNone(repo.get_entity("doc:doc-a"))
+        self.assertIsNone(repo.get_entity("ent-a1"))
+        self.assertIsNone(repo.get_entity("ent-a2"))
+        self.assertEqual(repo.get_neighbors("ent-a1"), [])
+        self.assertIsNotNone(repo.get_entity("doc:doc-b"))
+        self.assertIsNotNone(repo.get_entity("ent-b1"))
 
 
 class TestEvidenceLineage(unittest.TestCase):

@@ -25,7 +25,7 @@ Current Phase: Version 1.5 — Intelligence and Reliability
 
 Current Sprint: Version 1.5 P1 — Automated Quality Gate
 
-Current Task: V15-TEST-001
+Current Task: V15-INTENT-001
 
 Roadmap Source:
 - `docs/Version1.md` is the current roadmap source for the next implementation phase.
@@ -81,6 +81,7 @@ Completed Tasks:
 - [x] GEN-001
 - [x] INT-001
 - [x] V15-CONV-001
+- [x] V15-TEST-001
 
 Blocked Tasks:
 - None
@@ -715,10 +716,20 @@ Establish repeatable unit coverage for the v1.5 services and make the backend te
 Prerequisites:
 - V15-CONV-001
 
+Files to Create / Modify:
+- `backend/tests/test_graph_repository.py`
+- `backend/tests/test_retrieval.py`
+- `backend/tests/test_vector_pipeline.py`
+- `backend/TESTING.md`
+- `docs/00_TASK_MASTER.md`
+
 Acceptance Criteria:
 - New v1.5 services have isolated unit tests with infrastructure fakes.
 - The documented backend test command runs without external databases.
 - Existing in-memory graph and vector test doubles implement all current repository abstract methods, including `delete_document`.
+
+Evaluation:
+- From `backend/`, run `.\\.venv\\Scripts\\python.exe -m unittest discover -s tests`.
 
 Next:
 V15-INTENT-001

@@ -27,6 +27,10 @@ class MockVectorRepository(VectorRepository):
     def upsert_chunks(self, chunks, embeddings) -> None:
         self.upserted.append((chunks, embeddings))
 
+    def delete_document(self, document_id: str) -> None:
+        """Satisfy the repository contract for this read-only retrieval fake."""
+        return None
+
     def search(
         self, query_embedding: list[float], limit: int = 5, document_id: str | None = None
     ) -> list[SearchResult]:
@@ -65,6 +69,10 @@ class MockVectorRepository(VectorRepository):
 class MockGraphRepository(GraphRepository):
     def persist_knowledge_package(self, package) -> None:
         pass
+
+    def delete_document(self, document_id: str) -> None:
+        """Satisfy the repository contract for this read-only retrieval fake."""
+        return None
         
     def get_entity(self, entity_id: str) -> dict | None:
         return None

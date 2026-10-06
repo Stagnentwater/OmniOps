@@ -98,6 +98,14 @@ class InMemoryVectorRepository(VectorRepository):
         results.sort(key=lambda x: x.score, reverse=True)
         return results[:limit]
 
+    def delete_document(self, document_id: str) -> None:
+        """Remove all vectors whose payload belongs to one document."""
+        self._store = {
+            chunk_id: data
+            for chunk_id, data in self._store.items()
+            if data["payload"].get("document_id") != document_id
+        }
+
 
 class TestVectorPipeline(unittest.TestCase):
 
@@ -208,6 +216,24 @@ class TestVectorPipeline(unittest.TestCase):
         
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0].chunk_id, "chk-3")
+
+    def test_delete_document_removes_only_matching_chunks(self):
+        embeddings_a = self.provider.generate_embeddings(
+            [chunk.text for chunk in self.collection_a.chunks]
+        )
+        embeddings_b = self.provider.generate_embeddings(
+            [chunk.text for chunk in self.collection_b.chunks]
+        )
+        self.repo.upsert_chunks(self.collection_a, embeddings_a)
+        self.repo.upsert_chunks(self.collection_b, embeddings_b)
+
+        self.repo.delete_document("doc-A")
+
+        self.assertEqual(set(self.repo._store), {"chk-3"})
+        self.assertEqual(
+            [result.chunk_id for result in self.repo.search([5.0] * 4, limit=10)],
+            ["chk-3"],
+        )
 
 if __name__ == "__main__":
     unittest.main()
