@@ -5,6 +5,7 @@ from agents.tools.search_documents import SearchDocumentsTool, SearchDocumentsRe
 from agents.tools.search_graph import SearchKnowledgeGraphTool, SearchGraphResult
 from agents.tools.calculate import CalculateTool, CalculateToolResult
 from agents.tools.analyze_image import AnalyzeImageTool, AnalyzeImageResult
+from agents.tools.analyze_pid import AnalyzePIDTool, AnalyzePIDResult
 
 __all__ = [
     "SystemStatusTool",
@@ -16,4 +17,6 @@ __all__ = [
     "CalculateToolResult",
     "AnalyzeImageTool",
     "AnalyzeImageResult",
+    "AnalyzePIDTool",
+    "AnalyzePIDResult",
 ]

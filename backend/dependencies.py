@@ -258,3 +258,11 @@ def get_analyze_image_tool() -> "AnalyzeImageTool":
 
     return AnalyzeImageTool(get_vision_provider())
 
+
+def get_analyze_pid_tool() -> "AnalyzePIDTool":
+    """Instantiate AnalyzePIDTool backed by the application VisionProvider."""
+    from agents.tools.analyze_pid import AnalyzePIDTool
+
+    return AnalyzePIDTool(get_vision_provider())
+
+
