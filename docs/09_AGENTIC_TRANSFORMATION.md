@@ -318,8 +318,8 @@ safety: max iterations reached → fallback
 | AGENT-CALC-001 | Calculate Tool | AGENT-CORE-001 | COMPLETE |
 | AGENT-VISION-001 | AnalyzeImage Tool | AGENT-CORE-001 | COMPLETE |
 | AGENT-PID-001 | AnalyzePID Tool | AGENT-VISION-001 | COMPLETE |
-| AGENT-MULTI-001 | Multi-tool Orchestration | AGENT-RAG-001, AGENT-CALC-001 | NEXT |
-| AGENT-MEMORY-001 | Agent Memory | AGENT-MULTI-001 | NOT STARTED |
+| AGENT-MULTI-001 | Multi-tool Orchestration | AGENT-RAG-001, AGENT-CALC-001 | COMPLETE |
+| AGENT-MEMORY-001 | Agent Memory | AGENT-MULTI-001 | NEXT |
 | AGENT-E2E-001 | End-to-End Validation | ALL above | NOT STARTED |
 
 ---
