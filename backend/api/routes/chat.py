@@ -38,6 +38,7 @@ def get_session_messages(session_id: str, repo: ChatRepository = Depends(get_cha
             "role": m.role,
             "content": m.content,
             "citations": m.citations,
+            "metadata": getattr(m, "metadata", {}) or {},
             "created_at": m.created_at.isoformat(),
         }
         for m in messages

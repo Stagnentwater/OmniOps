@@ -94,6 +94,15 @@ async def submit_query(
         for c in agent_result.citations
     ]
 
+    metadata = {
+        "iterations": agent_result.iterations,
+        "tool_calls": agent_result.tool_calls_made,
+        "activities": getattr(agent_result, "activities", []),
+        "execution_time_seconds": agent_result.execution_time_seconds,
+    }
+    if agent_result.error:
+        metadata["error"] = agent_result.error
+
     if session_id:
         chat_repo.add_message(
             session_id=session_id,
@@ -103,15 +112,8 @@ async def submit_query(
                 c.model_dump() if hasattr(c, "model_dump") else c.dict()
                 for c in citations
             ],
+            metadata=metadata,
         )
-
-    metadata = {
-        "iterations": agent_result.iterations,
-        "tool_calls": agent_result.tool_calls_made,
-        "execution_time_seconds": agent_result.execution_time_seconds,
-    }
-    if agent_result.error:
-        metadata["error"] = agent_result.error
 
     return QueryResponse(
         answer=agent_result.answer,
@@ -166,20 +168,25 @@ async def stream_query(
                     on_event=emit_to_bus,
                 )
 
+                metadata = {
+                    "iterations": agent_result.iterations,
+                    "tool_calls": agent_result.tool_calls_made,
+                    "activities": getattr(agent_result, "activities", []),
+                    "execution_time_seconds": agent_result.execution_time_seconds,
+                    "error": agent_result.error,
+                }
+
                 bus.publish(
                     f"query_{session_id}",
                     {
                         "stage": "COMPLETED",
+                        "type": "agent_completed",
+                        "status": "completed",
                         "timestamp": time.time(),
                         "result": {
                             "answer": agent_result.answer,
                             "citations": agent_result.citations,
-                            "metadata": {
-                                "iterations": agent_result.iterations,
-                                "tool_calls": agent_result.tool_calls_made,
-                                "execution_time_seconds": agent_result.execution_time_seconds,
-                                "error": agent_result.error,
-                            },
+                            "metadata": metadata,
                         },
                     },
                 )
@@ -188,6 +195,8 @@ async def stream_query(
                 f"query_{session_id}",
                 {
                     "stage": "FAILED",
+                    "type": "agent_error",
+                    "status": "failed",
                     "timestamp": time.time(),
                     "error": str(e),
                 },
@@ -212,6 +221,7 @@ async def stream_query(
                         role="assistant",
                         content=result.get("answer", ""),
                         citations=result.get("citations", []),
+                        metadata=result.get("metadata", {}),
                     )
                     break
                 elif event.get("stage") == "FAILED":

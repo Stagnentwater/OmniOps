@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import json
+from typing import Any
 import uuid
 
 import psycopg
@@ -29,6 +30,7 @@ class ChatMessage:
     content: str
     citations: list[dict]
     created_at: datetime
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class ChatRepository:
@@ -58,9 +60,11 @@ class ChatRepository:
                     role TEXT NOT NULL,
                     content TEXT NOT NULL,
                     citations JSONB,
+                    metadata JSONB,
                     created_at TIMESTAMPTZ NOT NULL,
                     FOREIGN KEY (session_id) REFERENCES chat_sessions (session_id) ON DELETE CASCADE
                 );
+                ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS metadata JSONB;
                 """
             )
         connection.commit()
@@ -105,7 +109,12 @@ class ChatRepository:
         ]
 
     def add_message(
-        self, session_id: str, role: str, content: str, citations: list[dict] | None = None
+        self,
+        session_id: str,
+        role: str,
+        content: str,
+        citations: list[dict] | None = None,
+        metadata: dict | None = None,
     ) -> str:
         message_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc)
@@ -135,10 +144,18 @@ class ChatRepository:
             with connection.cursor() as cursor:
                 cursor.execute(
                     """
-                    INSERT INTO chat_messages (message_id, session_id, role, content, citations, created_at)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    INSERT INTO chat_messages (message_id, session_id, role, content, citations, metadata, created_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                     """,
-                    (message_id, session_id, role, content, json.dumps(citations) if citations else None, now),
+                    (
+                        message_id,
+                        session_id,
+                        role,
+                        content,
+                        json.dumps(citations) if citations else None,
+                        json.dumps(metadata) if metadata else None,
+                        now,
+                    ),
                 )
                 
                 # Update session updated_at
@@ -160,7 +177,7 @@ class ChatRepository:
             with connection.cursor() as cursor:
                 cursor.execute(
                     """
-                    SELECT message_id, session_id, role, content, citations, created_at
+                    SELECT message_id, session_id, role, content, citations, metadata, created_at
                     FROM chat_messages
                     WHERE session_id = %s
                     ORDER BY created_at ASC
@@ -177,6 +194,7 @@ class ChatRepository:
                 content=row["content"],
                 citations=row["citations"] if row["citations"] else [],
                 created_at=row["created_at"],
+                metadata=row.get("metadata") or {},
             )
             for row in rows
         ]
@@ -196,9 +214,9 @@ class ChatRepository:
             raise ValueError("limit must be greater than zero")
 
         query = """
-            SELECT message_id, session_id, role, content, citations, created_at
+            SELECT message_id, session_id, role, content, citations, metadata, created_at
             FROM (
-                SELECT message_id, session_id, role, content, citations, created_at
+                SELECT message_id, session_id, role, content, citations, metadata, created_at
                 FROM chat_messages
                 WHERE session_id = %s
                 ORDER BY created_at DESC, message_id DESC
@@ -209,9 +227,9 @@ class ChatRepository:
         parameters: list[object] = [session_id, limit]
         if exclude_message_id is not None:
             query = """
-                SELECT message_id, session_id, role, content, citations, created_at
+                SELECT message_id, session_id, role, content, citations, metadata, created_at
                 FROM (
-                    SELECT message_id, session_id, role, content, citations, created_at
+                    SELECT message_id, session_id, role, content, citations, metadata, created_at
                     FROM chat_messages
                     WHERE session_id = %s AND message_id <> %s
                     ORDER BY created_at DESC, message_id DESC
@@ -238,6 +256,7 @@ class ChatRepository:
                 content=row["content"],
                 citations=row["citations"] if row["citations"] else [],
                 created_at=row["created_at"],
+                metadata=row.get("metadata") or {},
             )
             for row in rows
         ]

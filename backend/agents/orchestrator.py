@@ -19,6 +19,7 @@ import asyncio
 import concurrent.futures
 import logging
 import time
+import uuid
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -49,6 +50,101 @@ IMPORTANT RULES:
 8. Cite sources when using retrieved documents."""
 
 
+def _sanitize_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Redact sensitive keys from tool arguments for UI safety."""
+    if not isinstance(arguments, dict):
+        return {}
+    sensitive_patterns = {"password", "secret", "token", "key", "auth", "credential"}
+    sanitized: dict[str, Any] = {}
+    for k, v in arguments.items():
+        if any(pat in k.lower() for pat in sensitive_patterns):
+            sanitized[k] = "[REDACTED]"
+        elif isinstance(v, str) and len(v) > 200:
+            sanitized[k] = v[:200] + "..."
+        else:
+            sanitized[k] = v
+    return sanitized
+
+
+def _generate_tool_started_message(tool_name: str, args: dict[str, Any]) -> str:
+    """Generate concise, user-safe activity message for tool execution start."""
+    if tool_name == "search_documents":
+        q = args.get("query", "")
+        if q:
+            clean_q = str(q).strip().strip("'\"")[:40]
+            return f"Searching technical documents for '{clean_q}'..."
+        return "Searching technical documents..."
+    elif tool_name == "search_knowledge_graph":
+        target = args.get("query") or args.get("entity_id") or ""
+        if target:
+            clean_t = str(target).strip().strip("'\"")[:40]
+            return f"Checking process graph for '{clean_t}'..."
+        return "Checking process graph relationships..."
+    elif tool_name == "calculate":
+        return "Running deterministic calculation..."
+    elif tool_name == "analyze_image":
+        return "Analyzing equipment image with Gemma 3..."
+    elif tool_name == "analyze_pid":
+        return "Analyzing Piping & Instrumentation Diagram..."
+    elif tool_name == "system_status":
+        return "Checking system operational status..."
+    return f"Running {tool_name}..."
+
+
+def _generate_tool_completed_message(
+    tool_name: str, result: ToolResult, args: dict[str, Any]
+) -> tuple[str, dict[str, Any]]:
+    """Generate concise, user-safe activity summary and metadata for completed tool."""
+    metadata: dict[str, Any] = {}
+    if not result.success:
+        err = result.error or "Operation failed"
+        return f"Tool '{tool_name}' failed: {err}", {"error": err}
+
+    if tool_name == "search_documents":
+        chunks = getattr(result.result, "chunks", None)
+        count = len(chunks) if chunks is not None else 0
+        metadata["result_count"] = count
+        if count == 0:
+            return "No matching document chunks found.", metadata
+        return f"Found {count} relevant document chunk{'s' if count != 1 else ''}.", metadata
+
+    elif tool_name == "search_knowledge_graph":
+        entities = getattr(result.result, "entities", None)
+        edges = getattr(result.result, "edges", None)
+        num_ent = len(entities) if entities is not None else 0
+        num_edge = len(edges) if edges is not None else 0
+        metadata["entities_count"] = num_ent
+        metadata["edges_count"] = num_edge
+        if num_ent == 0 and num_edge == 0:
+            return "No matching graph entities found.", metadata
+        return f"Found {num_ent} entity node(s) and {num_edge} relationship(s).", metadata
+
+    elif tool_name == "calculate":
+        raw_res = getattr(result.result, "raw_result", None)
+        if raw_res is None:
+            raw_res = str(result.result) if result.result is not None else ""
+        metadata["result"] = raw_res
+        metadata["execution_time_ms"] = result.execution_time_ms
+        return f"Calculation completed. Result: {raw_res}", metadata
+
+    elif tool_name == "analyze_image":
+        return "Image analysis completed.", metadata
+
+    elif tool_name == "analyze_pid":
+        eq = getattr(result.result, "equipment", None)
+        conn = getattr(result.result, "connections", None)
+        num_eq = len(eq) if eq is not None else 0
+        num_conn = len(conn) if conn is not None else 0
+        metadata["equipment_count"] = num_eq
+        metadata["connections_count"] = num_conn
+        return (
+            f"P&ID analysis completed: {num_eq} equipment tag(s), {num_conn} connection(s).",
+            metadata,
+        )
+
+    return f"{tool_name} completed successfully.", metadata
+
+
 @dataclass
 class AgentResult:
     """Final result of an agent execution."""
@@ -58,6 +154,7 @@ class AgentResult:
     iterations: int
     execution_time_seconds: float
     citations: list[dict[str, Any]] = field(default_factory=list)
+    activities: list[dict[str, Any]] = field(default_factory=list)
     error: str | None = None
 
 
@@ -125,6 +222,29 @@ class AgentOrchestrator:
 
         def emit(stage: str, data: dict[str, Any] | None = None) -> None:
             payload = dict(data) if data else {}
+            if "stage" not in payload:
+                payload["stage"] = stage
+            if "event_id" not in payload:
+                payload["event_id"] = str(uuid.uuid4())
+            if "execution_id" not in payload:
+                payload["execution_id"] = state.execution_id
+            if "timestamp" not in payload:
+                payload["timestamp"] = time.time()
+            if "status" not in payload:
+                payload["status"] = "running"
+
+            # Accumulate user-safe activity events in state.activities
+            if "type" in payload and "message" in payload:
+                state.activities.append({
+                    "id": payload["event_id"],
+                    "type": payload["type"],
+                    "status": payload.get("status", "running"),
+                    "message": payload["message"],
+                    "tool": payload.get("tool"),
+                    "metadata": payload.get("metadata", {}),
+                    "timestamp": payload["timestamp"],
+                })
+
             try:
                 event_callback(stage, payload)
             except Exception:
@@ -186,6 +306,9 @@ class AgentOrchestrator:
         })
 
         emit("AGENT_STARTED", {
+            "type": "agent_started",
+            "status": "running",
+            "message": "Analyzing request...",
             "execution_id": state.execution_id,
             "query": query,
         })
@@ -232,9 +355,14 @@ class AgentOrchestrator:
 
             # 1. Call LLM with tools
             emit("REASONING", {
+                "type": "reasoning_summary",
+                "status": "running",
+                "message": "Analyzing request..." if state.iteration_count == 1 else f"Synthesizing findings (step {state.iteration_count})...",
                 "iteration": state.iteration_count,
             })
-            emit("GENERATING_RESPONSE", {})
+            emit("GENERATING_RESPONSE", {
+                "iteration": state.iteration_count,
+            })
 
             try:
                 tools = self._registry.get_ollama_schemas()
@@ -256,6 +384,9 @@ class AgentOrchestrator:
                     "content": state.final_answer,
                 })
                 emit("FINAL_ANSWER", {
+                    "type": "final_answer_started",
+                    "status": "running",
+                    "message": "Preparing final response...",
                     "iteration": state.iteration_count,
                 })
                 logger.info(
@@ -306,6 +437,15 @@ class AgentOrchestrator:
                 # Record the tool call
                 state.add_tool_call(tc.name, tc.arguments)
 
+                start_msg = _generate_tool_started_message(tc.name, tc.arguments)
+                emit("TOOL_STARTED", {
+                    "type": "tool_started",
+                    "tool": tc.name,
+                    "status": "running",
+                    "message": start_msg,
+                    "iteration": state.iteration_count,
+                    "metadata": {"arguments": _sanitize_arguments(tc.arguments)},
+                })
                 emit("TOOL_EXECUTING", {
                     "tool": tc.name,
                     "iteration": state.iteration_count,
@@ -314,6 +454,29 @@ class AgentOrchestrator:
                     emit("SEARCHING_VECTOR_DB", {})
                 elif tc.name == "search_knowledge_graph":
                     emit("EXPANDING_KNOWLEDGE_GRAPH", {})
+                elif tc.name == "calculate":
+                    calc_code = tc.arguments.get("code") or tc.arguments.get("expression") or ""
+                    if calc_code:
+                        emit("CODE_GENERATED", {
+                            "type": "code_generated",
+                            "tool": "calculate",
+                            "status": "running",
+                            "message": "Generated Python calculation",
+                            "metadata": {
+                                "language": "python",
+                                "code": str(calc_code).strip(),
+                            },
+                        })
+                    emit("CODE_EXECUTION_STARTED", {
+                        "type": "code_execution_started",
+                        "tool": "calculate",
+                        "status": "running",
+                        "message": "Running Python calculation in sandbox...",
+                        "metadata": {
+                            "language": "python",
+                            "code": str(calc_code).strip() if calc_code else "",
+                        },
+                    })
 
                 # Execute via ToolExecutor
                 result = self._execute_tool_sync(tc.name, tc.arguments)
@@ -326,12 +489,46 @@ class AgentOrchestrator:
                     "content": result.to_message_content(),
                 })
 
-                emit("TOOL_COMPLETED", {
-                    "tool": tc.name,
-                    "success": result.success,
-                    "execution_time_ms": result.execution_time_ms,
-                    "iteration": state.iteration_count,
-                })
+                if result.success:
+                    comp_msg, comp_meta = _generate_tool_completed_message(tc.name, result, tc.arguments)
+                    if tc.name == "calculate":
+                        calc_code = tc.arguments.get("code") or tc.arguments.get("expression") or ""
+                        raw_res = comp_meta.get("result", "")
+                        emit("CODE_EXECUTION_COMPLETED", {
+                            "type": "code_execution_completed",
+                            "tool": "calculate",
+                            "status": "completed",
+                            "message": f"Calculation completed ({result.execution_time_ms:.0f}ms)",
+                            "metadata": {
+                                "language": "python",
+                                "code": str(calc_code).strip() if calc_code else "",
+                                "result": raw_res,
+                                "status": "success",
+                                "execution_time_ms": result.execution_time_ms,
+                            },
+                        })
+                    emit("TOOL_COMPLETED", {
+                        "type": "tool_completed",
+                        "tool": tc.name,
+                        "status": "completed",
+                        "message": comp_msg,
+                        "success": True,
+                        "execution_time_ms": result.execution_time_ms,
+                        "iteration": state.iteration_count,
+                        "metadata": comp_meta,
+                    })
+                else:
+                    err_msg = f"{tc.name} failed: {result.error or 'Execution error'}"
+                    emit("TOOL_FAILED", {
+                        "type": "tool_failed",
+                        "tool": tc.name,
+                        "status": "failed",
+                        "message": err_msg,
+                        "success": False,
+                        "execution_time_ms": result.execution_time_ms,
+                        "iteration": state.iteration_count,
+                        "metadata": {"error": result.error},
+                    })
 
                 logger.info(
                     "Tool '%s' completed: success=%s, time=%.0fms",
@@ -354,6 +551,9 @@ class AgentOrchestrator:
         # === BUILD RESULT ===
         elapsed = state.elapsed_seconds
         emit("AGENT_COMPLETED", {
+            "type": "agent_completed",
+            "status": "completed",
+            "message": "Request completed.",
             "execution_id": state.execution_id,
             "iterations": state.iteration_count,
             "tool_calls": len(state.tool_calls),
@@ -398,6 +598,7 @@ class AgentOrchestrator:
             iterations=state.iteration_count,
             execution_time_seconds=elapsed,
             citations=citations,
+            activities=state.activities,
             error=state.error,
         )
 

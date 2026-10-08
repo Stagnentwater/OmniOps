@@ -6,7 +6,7 @@ import {
   Search, User, X, Plus, MessageSquare, 
   BookOpen, FileText, ChevronRight
 } from "lucide-react";
-import { RetrievalStepper } from "@/components/RetrievalStepper";
+import { AgentActivityStream, AgentActivityItem } from "@/components/AgentActivityStream";
 
 export interface ChatMessageItem {
   id: string;
@@ -36,6 +36,7 @@ export interface ChatViewProps {
   activeQuery?: string;
   currentStage: string;
   activeMetadata: any | null;
+  activeActivities?: AgentActivityItem[];
 
   // Answer + citations
   answer?: string;
@@ -64,6 +65,7 @@ export function ChatView({
   mode,
   currentStage,
   activeMetadata,
+  activeActivities,
   streamingAnswer,
   citations,
   hoveredCitationId,
@@ -92,7 +94,7 @@ export function ChatView({
     if (isNearBottomRef.current) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages.length, currentStage, streamingAnswer, mode]);
+  }, [messages.length, currentStage, streamingAnswer, mode, activeActivities]);
 
   // When switching or loading a session, jump to the latest message
   useEffect(() => {
@@ -266,19 +268,27 @@ export function ChatView({
                       )}
                     </div>
                   </div>
+
+                  {/* Historical agent activity accordion if present */}
+                  {message.metadata?.activities && message.metadata.activities.length > 0 && (
+                    <div className="mb-4">
+                      <AgentActivityStream activities={message.metadata.activities} isLive={false} />
+                    </div>
+                  )}
+
                   {renderAnswerWithCitations(message.content, message.citations)}
                 </motion.div>
               );
             })}
 
-            {/* Active querying indicator / pipeline stepper */}
+            {/* Active querying indicator / live agent activity stream */}
             {mode === "querying" && (
               <motion.div 
                 initial={{ opacity: 0, y: 6 }} 
                 animate={{ opacity: 1, y: 0 }} 
                 className="flex flex-col gap-4 shrink-0"
               >
-                <RetrievalStepper currentStage={currentStage} metadata={activeMetadata} />
+                <AgentActivityStream activities={activeActivities || []} isLive={true} />
 
                 {streamingAnswer ? (
                   <div className="bg-[var(--color-surface-elevated)] border border-[var(--color-border)] rounded-xl p-5 shadow-sm">

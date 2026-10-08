@@ -37,6 +37,7 @@ class AgentState:
     # Tool execution history
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
     tool_results: list[ToolResult] = field(default_factory=list)
+    activities: list[dict[str, Any]] = field(default_factory=list)
 
     # Safety counters
     iteration_count: int = 0

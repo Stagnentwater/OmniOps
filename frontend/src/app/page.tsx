@@ -5,6 +5,7 @@ import { ApiClient } from "@/services/api";
 import { GraphData } from "@/components/RetrievalGraph";
 import { NavRail, ViewId } from "@/components/NavRail";
 import { ChatView, ChatMessageItem } from "@/components/ChatView";
+import { AgentActivityItem } from "@/components/AgentActivityStream";
 import { KnowledgeBaseView } from "@/components/KnowledgeBaseView";
 import { IngestionView } from "@/components/IngestionView";
 import { OverviewView } from "@/components/OverviewView";
@@ -39,6 +40,7 @@ export default function UnifiedPage() {
   const [queryInput, setQueryInput] = useState("");
   const [activeQuery, setActiveQuery] = useState("");
   const [activeMetadata, setActiveMetadata] = useState<any | null>(null);
+  const [activeActivities, setActiveActivities] = useState<AgentActivityItem[]>([]);
   const [currentStage, setCurrentStage] = useState<string>("");
   const [answer, setAnswer] = useState("");
   const [citations, setCitations] = useState<any[]>([]);
@@ -141,23 +143,80 @@ export default function UnifiedPage() {
     setStreamingAnswer("");
     setCitations([]);
     setActiveMetadata(null);
+    setActiveActivities([]);
     setGraphViewMode("retrieval");
 
     try {
       await ApiClient.queryStream(q, null, currentSessionId, (event) => {
         if (event.stage) setCurrentStage(event.stage);
+
+        // Process dynamic activity stream events
+        if (event.type || event.message) {
+          setActiveActivities(prev => {
+            const incomingId = event.event_id || event.id;
+            const tool = event.tool;
+            const status = event.status || (event.stage === "FAILED" ? "failed" : event.stage === "COMPLETED" ? "completed" : "running");
+            const message = event.message || event.stage;
+            const metadata = event.metadata || {};
+
+            // Check if this event updates an existing activity
+            let existingIdx = incomingId ? prev.findIndex(a => a.id === incomingId) : -1;
+            if (existingIdx === -1 && tool && (event.type === "tool_completed" || event.type === "tool_failed" || event.type === "code_execution_completed")) {
+              for (let i = prev.length - 1; i >= 0; i--) {
+                if (prev[i].tool === tool && prev[i].status === "running") {
+                  existingIdx = i;
+                  break;
+                }
+              }
+            }
+
+            const item: AgentActivityItem = {
+              id: incomingId || `act-${Date.now()}-${Math.random()}`,
+              type: event.type || event.stage,
+              status,
+              message,
+              tool,
+              metadata,
+              timestamp: event.timestamp || Date.now(),
+            };
+
+            if (existingIdx !== -1) {
+              const updated = [...prev];
+              updated[existingIdx] = {
+                ...updated[existingIdx],
+                ...item,
+                metadata: { ...(updated[existingIdx].metadata || {}), ...metadata },
+              };
+              return updated;
+            }
+
+            // Deduplicate if identical to immediate previous item
+            if (prev.length > 0) {
+              const last = prev[prev.length - 1];
+              if (last.message === message && last.status === status && last.tool === tool) {
+                return prev;
+              }
+            }
+
+            return [...prev, item];
+          });
+        }
         
         if (event.stage === "COMPLETED") {
           const finalAnswer = event.result.answer;
           const finalCitations = event.result.citations || [];
-          const finalMetadata = event.result.metadata;
+          const finalMetadata = event.result.metadata || {};
+          const activitiesSnapshot = finalMetadata.activities || activeActivities;
 
           const asstMsg: ChatMessageItem = {
             id: `asst-${Date.now()}`,
             role: "assistant",
             content: finalAnswer,
             citations: finalCitations,
-            metadata: finalMetadata,
+            metadata: {
+              ...finalMetadata,
+              activities: activitiesSnapshot,
+            },
             created_at: new Date().toISOString(),
           };
 
@@ -166,11 +225,13 @@ export default function UnifiedPage() {
           setCitations(finalCitations);
           setActiveMetadata(finalMetadata);
           setStreamingAnswer("");
+          setActiveActivities([]);
           setMode("answered");
           fetchChatSessions();
         } else if (event.stage === "FAILED") {
           setMode(messages.length > 0 ? "answered" : "idle");
           setStreamingAnswer("");
+          setActiveActivities([]);
           alert("Query failed: " + event.error);
         } else {
           if (event.metadata) {
@@ -182,6 +243,7 @@ export default function UnifiedPage() {
       console.error("Query stream error", err);
       setMode(messages.length > 0 ? "answered" : "idle");
       setStreamingAnswer("");
+      setActiveActivities([]);
     }
   };
 
@@ -210,6 +272,7 @@ export default function UnifiedPage() {
         setMode("idle");
       }
       setActiveMetadata(null);
+      setActiveActivities([]);
       setCurrentStage("COMPLETED");
       setGraphViewMode("global");
     } catch (err) {
@@ -239,6 +302,7 @@ export default function UnifiedPage() {
     setStreamingAnswer("");
     setCitations([]);
     setActiveMetadata(null);
+    setActiveActivities([]);
     setActiveSessionId(null);
     if (typeof window !== "undefined") {
       localStorage.removeItem("omniops_active_session_id");
@@ -401,6 +465,7 @@ export default function UnifiedPage() {
               activeQuery={activeQuery}
               currentStage={currentStage}
               activeMetadata={activeMetadata}
+              activeActivities={activeActivities}
               answer={answer}
               streamingAnswer={streamingAnswer}
               citations={citations}
