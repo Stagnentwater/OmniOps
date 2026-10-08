@@ -41,6 +41,29 @@ class PromptBuilder:
         context_mapping: dict[int, RetrievedChunk] = {}
         formatted_blocks: list[str] = []
         
+        # 0. Include detected intent for LLM reasoning guidance
+        if context.intent is not None:
+            intent_label = context.intent.intent.value.replace("_", " ").title()
+            formatted_blocks.append(
+                f"--- Query Intent ---\n"
+                f"Classified Intent: {intent_label}\n"
+                f"Confidence: {context.intent.confidence:.0%}\n"
+            )
+
+        # 0b. Include detected asset references
+        if (
+            context.detected_assets is not None
+            and context.detected_assets.candidates
+        ):
+            asset_lines = ["--- Detected Assets ---"]
+            for candidate in context.detected_assets.candidates:
+                status = "Resolved" if candidate.resolved else "Unresolved"
+                asset_lines.append(
+                    f"Asset: {candidate.canonical_name} "
+                    f"(type={candidate.entity_type}, status={status})"
+                )
+            formatted_blocks.append("\n".join(asset_lines) + "\n")
+
         # 1. Format chunks
         for idx, chunk in enumerate(context.chunks, start=1):
             context_mapping[idx] = chunk

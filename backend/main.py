@@ -28,17 +28,26 @@ async def lifespan(app: FastAPI):
     if not settings.openrouter.api_key:
         logger.error("OPENROUTER_API_KEY is missing. Failsafe activated.")
         raise RuntimeError("OPENROUTER_API_KEY is required for startup.")
-        
-    # TODO: Instantiate Neo4j, Qdrant, Postgres Connection Managers here
-    # app.state.neo4j = Neo4jConnectionManager(settings.neo4j)
-    # app.state.qdrant = QdrantConnectionManager(settings.qdrant)
-    # app.state.postgres = PostgresConnectionManager(settings.postgres)
+
+    # Initialize connection pool (Neo4j, Qdrant)
+    from config.connection_pool import ConnectionPool
+    from dependencies import register_connection_pool
+    pool = ConnectionPool(settings)
+    pool.initialize()
+    app.state.connection_pool = pool
+    register_connection_pool(pool)
+
+    # Log health status
+    health = pool.health_check()
+    for service, status in health.items():
+        logger.info("  %s: %s", service, status)
     
     logger.info("OmniOps backend successfully initialized.")
     yield
     
     logger.info("Shutting down OmniOps backend...")
-    # TODO: Close connection pools
+    pool.close()
+    logger.info("OmniOps backend shutdown complete.")
 
 
 from fastapi.middleware.cors import CORSMiddleware

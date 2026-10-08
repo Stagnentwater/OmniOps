@@ -8,12 +8,11 @@ import json
 import logging
 
 from database.repositories import DocumentMetadata, MetadataRepository
-from ingestion.orchestrator import process_ingestion_job
 from storage.factory import get_storage_service
 
 
 logger = logging.getLogger(__name__)
-ALLOWED_EXTENSIONS = {".pdf", ".docx", ".csv", ".xlsx", ".xls"}
+ALLOWED_EXTENSIONS = {".pdf", ".docx", ".csv", ".xlsx", ".xls", ".png", ".jpg", ".jpeg", ".tif", ".tiff"}
 
 
 class UploadServiceError(Exception):
@@ -64,7 +63,7 @@ def _validate_upload(*, file_name: str, data: bytes) -> None:
     if extension not in ALLOWED_EXTENSIONS:
         raise UploadServiceError(
             code="unsupported_file_type",
-            message="Only PDF, DOCX, CSV, and Excel (.xlsx/.xls) files are supported.",
+            message="Only PDF, DOCX, CSV, Excel (.xlsx/.xls), and image (PNG, JPG, TIFF) files are supported.",
             status_code=400,
         )
     if not data:
@@ -141,14 +140,15 @@ def handle_upload(
 
     job_id = repository.create_ingestion_job(document_id=document_id)
     try:
-        # Bypass RQ on Windows and use FastAPI BackgroundTasks directly
-        background_tasks.add_task(
-            process_ingestion_job,
-            lifecycle_job_id=job_id,
+        from ingestion.execution_strategy import get_execution_strategy
+        strategy = get_execution_strategy()
+        rq_job_id = strategy.enqueue(
+            job_id=job_id,
             document_id=document_id,
             file_name=file_name,
+            background_tasks=background_tasks,
         )
-        repository.mark_job_enqueued(job_id=job_id, rq_job_id=job_id)
+        repository.mark_job_enqueued(job_id=job_id, rq_job_id=rq_job_id)
     except Exception as exc:
         repository.mark_job_queue_failed(job_id=job_id, error=str(exc))
         _emit_upload_log(

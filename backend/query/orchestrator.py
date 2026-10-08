@@ -59,6 +59,23 @@ class QueryOrchestrator:
                 "chunks": len(context.chunks), 
                 "entities": len(context.entities),
                 "relationships": len(context.relationships),
+                "intent": {
+                    "type": context.intent.intent.value,
+                    "confidence": context.intent.confidence,
+                } if context.intent else None,
+                "detected_assets": {
+                    "resolved_count": context.detected_assets.resolved_count,
+                    "ambiguous": context.detected_assets.ambiguous,
+                    "candidates": [
+                        {
+                            "raw_mention": c.raw_mention,
+                            "canonical_name": c.canonical_name,
+                            "entity_type": c.entity_type,
+                            "resolved": c.resolved,
+                        }
+                        for c in context.detected_assets.candidates
+                    ],
+                } if context.detected_assets else None,
                 "metadata": {
                     "retrieved_chunks": [
                         {

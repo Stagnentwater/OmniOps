@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ingestion.vision_models import VisualEvidence
 
 
 @dataclass(frozen=True)
@@ -15,3 +18,4 @@ class DocumentContent:
     pages: tuple[str, ...]
     page_count: int
     metadata: dict[str, str | int | bool | float]
+    visual_evidence: tuple[VisualEvidence, ...] = ()

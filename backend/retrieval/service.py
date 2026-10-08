@@ -13,6 +13,9 @@ from retrieval.retrieval_models import (
     RetrievedEntity,
     RetrievedRelationship,
 )
+from retrieval.intent_detector import IntentDetector
+from retrieval.asset_detector import AssetDetector
+from retrieval.evidence_ranker import EvidenceRanker
 
 
 class RetrievalService:
@@ -27,17 +30,40 @@ class RetrievalService:
         vector_repo: VectorRepository,
         graph_service: GraphQueryService,
         embedding_provider: EmbeddingProvider,
+        intent_detector: IntentDetector | None = None,
+        asset_detector: AssetDetector | None = None,
+        evidence_ranker: EvidenceRanker | None = None,
     ) -> None:
         self._vector_repo = vector_repo
         self._graph_service = graph_service
         self._embedding_provider = embedding_provider
+        self._intent_detector = intent_detector or IntentDetector()
+        self._asset_detector = asset_detector or AssetDetector(
+            graph_service=graph_service,
+        )
+        self._evidence_ranker = evidence_ranker or EvidenceRanker()
         self._logger = logging.getLogger(__name__)
 
     def retrieve(self, query: str, limit: int = 5) -> RetrievalContext:
-        """Execute independent parallel retrievals and merge evidence."""
+        """Execute independent parallel retrievals, rank, and merge evidence."""
         
-        # We will use ThreadPoolExecutor to run vector and graph queries in parallel
-        # to guarantee independence as required by the architecture.
+        # Stage 1: Detect query intent (deterministic, no LLM)
+        detected_intent = self._intent_detector.detect(query)
+        self._logger.info(
+            "Intent detected: %s (confidence=%.2f)",
+            detected_intent.intent.value,
+            detected_intent.confidence,
+        )
+
+        # Stage 2: Detect and resolve asset references (deterministic, no LLM)
+        detected_assets = self._asset_detector.detect(query)
+        self._logger.info(
+            "Asset detection: %d candidates, %d resolved",
+            len(detected_assets.candidates),
+            detected_assets.resolved_count,
+        )
+
+        # Stage 4 & 5: Parallel vector + graph retrieval
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
             vector_future = executor.submit(self._retrieve_vectors, query, limit)
             graph_future = executor.submit(self._retrieve_graph, query, limit)
@@ -45,11 +71,28 @@ class RetrievalService:
             chunks = vector_future.result()
             entities, relationships = graph_future.result()
 
-        return RetrievalContext(
+        # Build initial context (unranked)
+        unranked_context = RetrievalContext(
             query=query,
             chunks=tuple(chunks),
             entities=tuple(entities),
             relationships=tuple(relationships),
+            intent=detected_intent,
+            detected_assets=detected_assets,
+        )
+
+        # Stage 6: Evidence Ranking
+        ranked_chunks, ranking_explanations = self._evidence_ranker.rank(unranked_context)
+
+        return RetrievalContext(
+            query=query,
+            chunks=ranked_chunks if ranked_chunks else tuple(chunks),
+            entities=tuple(entities),
+            relationships=tuple(relationships),
+            intent=detected_intent,
+            detected_assets=detected_assets,
+            ranked_chunks=ranked_chunks if ranked_chunks else None,
+            ranking_explanations=ranking_explanations if ranking_explanations else None,
         )
 
     def _retrieve_vectors(self, query: str, limit: int) -> list[RetrievedChunk]:
