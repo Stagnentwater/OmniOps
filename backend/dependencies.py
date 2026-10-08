@@ -31,15 +31,65 @@ from typing import Callable
 def get_metadata_repo() -> MetadataRepository:
     return MetadataRepository()
 
+def _get_connections() -> tuple:
+    """Get Neo4j and Qdrant connection managers, preferring pooled connections.
+
+    During a FastAPI request, reuses the long-lived connections from
+    the application-level ConnectionPool (created at startup).
+    For background workers or tests, falls back to creating new connections.
+
+    Returns:
+        A tuple of (neo4j_conn, qdrant_conn).
+    """
+    settings = get_settings()
+
+    # Try to use the app-level connection pool (set in main.py lifespan)
+    try:
+        from starlette.concurrency import run_in_threadpool  # noqa: F401
+        # This import is just a probe to check if we're in a web context.
+        # The actual pool comes from a module-level variable.
+    except ImportError:
+        pass
+
+    # Try the module-level pool reference first
+    pool = _app_connection_pool
+    if pool is not None and pool.is_initialized:
+        neo4j_conn = pool.neo4j
+        qdrant_conn = pool.qdrant
+        if neo4j_conn is not None and qdrant_conn is not None:
+            return neo4j_conn, qdrant_conn
+
+    # Fallback: create new connections (background workers, tests, first startup)
+    neo4j_conn = Neo4jConnectionManager(
+        settings.neo4j.uri, settings.neo4j.user, settings.neo4j.password,
+    )
+    qdrant_conn = QdrantConnectionManager(
+        url=settings.qdrant.url, api_key=settings.qdrant.api_key,
+    )
+    return neo4j_conn, qdrant_conn
+
+
+# Module-level pool reference, set by register_connection_pool()
+_app_connection_pool = None
+
+
+def register_connection_pool(pool) -> None:
+    """Register the application-level ConnectionPool for dependency reuse.
+
+    Called by the FastAPI lifespan handler after pool initialization.
+    """
+    global _app_connection_pool
+    _app_connection_pool = pool
+
+
 def get_query_orchestrator() -> "QueryOrchestrator":
     from query.orchestrator import QueryOrchestrator
     
     settings = get_settings()
     
-    # 1. Instantiate Storage/Vector Repos
-    neo4j_conn = Neo4jConnectionManager(settings.neo4j.uri, settings.neo4j.user, settings.neo4j.password)
+    # 1. Reuse pooled connections
+    neo4j_conn, qdrant_conn = _get_connections()
     graph_repo = Neo4jGraphRepository(neo4j_conn)
-    qdrant_conn = QdrantConnectionManager(url=settings.qdrant.url, api_key=settings.qdrant.api_key)
     vector_repo = QdrantVectorRepository(qdrant_conn)
     
     # 2. Instantiate Providers
@@ -66,9 +116,9 @@ def get_query_orchestrator() -> "QueryOrchestrator":
 def get_ingestion_orchestrator(job_id: str) -> IngestionOrchestrator:
     settings = get_settings()
     
-    neo4j_conn = Neo4jConnectionManager(settings.neo4j.uri, settings.neo4j.user, settings.neo4j.password)
+    # Reuse pooled connections
+    neo4j_conn, qdrant_conn = _get_connections()
     graph_repo = Neo4jGraphRepository(neo4j_conn)
-    qdrant_conn = QdrantConnectionManager(url=settings.qdrant.url, api_key=settings.qdrant.api_key)
     vector_repo = QdrantVectorRepository(qdrant_conn)
     embedding_provider = SentenceTransformerEmbeddingProvider(settings.embedding.model_name)
     metadata_repo = MetadataRepository()
@@ -85,6 +135,25 @@ def get_ingestion_orchestrator(job_id: str) -> IngestionOrchestrator:
             file_bytes = f.read()
 
         basename = os.path.basename(file_path)
+
+        # Image files: route through vision pipeline
+        from parser.image_parser import is_image_file
+        if is_image_file(basename):
+            from parser.image_parser import parse_image
+            from generation.vision_provider import VisionProvider
+            vision_provider = VisionProvider(
+                base_url=settings.vision.ollama_base_url,
+                model=settings.vision.model_name,
+            )
+            doc = parse_image(
+                image_bytes=file_bytes,
+                filename=basename,
+                vision_provider=vision_provider,
+                max_resolution=settings.vision.max_resolution,
+                storage_uri=f"file://{file_path}",
+            )
+            doc.metadata["document_id"] = doc_id
+            return doc
 
         if ext == ".pdf":
             from parser.pdf_parser import parse_pdf
