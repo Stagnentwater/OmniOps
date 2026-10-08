@@ -266,3 +266,61 @@ def get_analyze_pid_tool() -> "AnalyzePIDTool":
     return AnalyzePIDTool(get_vision_provider())
 
 
+def get_search_documents_tool() -> "SearchDocumentsTool":
+    """Instantiate SearchDocumentsTool backed by RetrievalService."""
+    from agents.tools.search_documents import SearchDocumentsTool
+
+    settings = get_settings()
+    neo4j_conn, qdrant_conn = _get_connections()
+    graph_repo = Neo4jGraphRepository(neo4j_conn)
+    vector_repo = QdrantVectorRepository(qdrant_conn)
+    embedding_provider = SentenceTransformerEmbeddingProvider(settings.embedding.model_name)
+    graph_query = GraphQueryService(graph_repo)
+    retrieval_service = RetrievalService(vector_repo, graph_query, embedding_provider)
+    return SearchDocumentsTool(retrieval_service)
+
+
+def get_search_knowledge_graph_tool() -> "SearchKnowledgeGraphTool":
+    """Instantiate SearchKnowledgeGraphTool backed by GraphQueryService."""
+    from agents.tools.search_graph import SearchKnowledgeGraphTool
+
+    neo4j_conn, _ = _get_connections()
+    graph_repo = Neo4jGraphRepository(neo4j_conn)
+    graph_query = GraphQueryService(graph_repo)
+    return SearchKnowledgeGraphTool(graph_query)
+
+
+def get_agent_orchestrator() -> "AgentOrchestrator":
+    """Instantiate AgentOrchestrator with all 5 industrial tools and Ollama provider."""
+    from agents.orchestrator import AgentOrchestrator
+    from agents.ollama_agent_provider import OllamaAgentProvider
+    from agents.tool_registry import ToolRegistry
+    from agents.tool_executor import ToolExecutor
+
+    settings = get_settings()
+
+    registry = ToolRegistry()
+    registry.register(get_search_documents_tool())
+    registry.register(get_search_knowledge_graph_tool())
+    registry.register(get_calculate_tool())
+    registry.register(get_analyze_image_tool())
+    registry.register(get_analyze_pid_tool())
+
+    executor = ToolExecutor(registry)
+    provider = OllamaAgentProvider(
+        base_url=settings.models.ollama_base_url,
+        model=settings.models.reasoning_model,
+    )
+    chat_repo = ChatRepository()
+
+    return AgentOrchestrator(
+        llm_provider=provider,
+        tool_registry=registry,
+        tool_executor=executor,
+        max_iterations=settings.agent.max_iterations,
+        timeout_seconds=settings.agent.timeout_seconds,
+        chat_repository=chat_repo,
+        max_history_turns=settings.query.conversation_history_limit,
+    )
+
+

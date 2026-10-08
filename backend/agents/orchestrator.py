@@ -57,6 +57,7 @@ class AgentResult:
     tool_calls_made: list[dict[str, Any]]
     iterations: int
     execution_time_seconds: float
+    citations: list[dict[str, Any]] = field(default_factory=list)
     error: str | None = None
 
 
@@ -84,6 +85,8 @@ class AgentOrchestrator:
         timeout_seconds: float = 120.0,
         system_prompt: str = _SYSTEM_PROMPT,
         on_event: Callable[[str, dict[str, Any]], None] | None = None,
+        chat_repository: Any | None = None,
+        max_history_turns: int = 10,
     ) -> None:
         self._llm = llm_provider
         self._registry = tool_registry
@@ -92,24 +95,41 @@ class AgentOrchestrator:
         self._timeout = timeout_seconds
         self._system_prompt = system_prompt
         self._on_event = on_event or (lambda stage, data: None)
+        self._chat_repository = chat_repository
+        self._max_history_turns = max_history_turns
 
     def run(
         self,
         query: str,
         conversation_id: str = "",
         conversation_history: list[dict[str, Any]] | None = None,
+        exclude_message_id: str | None = None,
+        on_event: Callable[[str, dict[str, Any]], None] | None = None,
     ) -> AgentResult:
         """Execute the full agent loop for a user query.
 
         Args:
             query: The user's question.
-            conversation_id: Optional session ID for tracking.
+            conversation_id: Optional session ID for tracking and history loading.
             conversation_history: Optional prior conversation turns
-                (list of dicts with 'role' and 'content').
+                (list of dicts or ChatMessage objects with 'role' and 'content').
+            exclude_message_id: Optional message ID to exclude when loading
+                history from chat_repository (typically the current turn).
+            on_event: Optional per-run event callback.
 
         Returns:
-            An AgentResult with the final answer and execution metadata.
+            An AgentResult with the final answer, citations, and execution metadata.
         """
+        # Event emitter for this run
+        event_callback = on_event or self._on_event
+
+        def emit(stage: str, data: dict[str, Any] | None = None) -> None:
+            payload = dict(data) if data else {}
+            try:
+                event_callback(stage, payload)
+            except Exception:
+                logger.debug("Event emission failed for stage '%s'", stage, exc_info=True)
+
         # Initialize state
         state = AgentState(
             conversation_id=conversation_id,
@@ -124,13 +144,40 @@ class AgentOrchestrator:
             "content": self._system_prompt,
         })
 
-        # Add conversation history if provided
-        if conversation_history:
-            for turn in conversation_history:
-                state.messages.append({
-                    "role": turn["role"],
-                    "content": turn["content"],
-                })
+        # Resolve conversation history with strict bounds
+        resolved_history: list[dict[str, str]] = []
+        if conversation_history is not None:
+            bounded = conversation_history[-self._max_history_turns:]
+            for turn in bounded:
+                role = turn.get("role") if isinstance(turn, dict) else getattr(turn, "role", None)
+                content = turn.get("content") if isinstance(turn, dict) else getattr(turn, "content", None)
+                if role in {"user", "assistant"} and content and str(content).strip():
+                    resolved_history.append({"role": role, "content": str(content).strip()})
+        elif self._chat_repository is not None and conversation_id:
+            try:
+                messages = self._chat_repository.get_recent_messages(
+                    session_id=conversation_id,
+                    limit=self._max_history_turns,
+                    exclude_message_id=exclude_message_id,
+                )
+                for msg in messages:
+                    role = msg.role if hasattr(msg, "role") else (msg.get("role") if isinstance(msg, dict) else None)
+                    content = msg.content if hasattr(msg, "content") else (msg.get("content") if isinstance(msg, dict) else None)
+                    if role in {"user", "assistant"} and content and str(content).strip():
+                        resolved_history.append({"role": role, "content": str(content).strip()})
+            except Exception as e:
+                logger.warning(
+                    "Failed to load conversation history for session %s: %s",
+                    conversation_id,
+                    e,
+                )
+
+        # Add prior turns
+        for turn in resolved_history:
+            state.messages.append({
+                "role": turn["role"],
+                "content": turn["content"],
+            })
 
         # Add current user query
         state.messages.append({
@@ -138,7 +185,7 @@ class AgentOrchestrator:
             "content": query,
         })
 
-        self._emit("AGENT_STARTED", {
+        emit("AGENT_STARTED", {
             "execution_id": state.execution_id,
             "query": query,
         })
@@ -165,7 +212,7 @@ class AgentOrchestrator:
             if state.is_timed_out:
                 logger.warning("Agent timed out after %.1fs", state.elapsed_seconds)
                 state.error = "Agent execution timed out"
-                self._emit("AGENT_TIMEOUT", {
+                emit("AGENT_TIMEOUT", {
                     "elapsed": state.elapsed_seconds,
                 })
                 break
@@ -177,16 +224,17 @@ class AgentOrchestrator:
                     state.consecutive_errors,
                 )
                 state.final_answer = self._build_fallback_answer(state)
-                self._emit("AGENT_FALLBACK", {
+                emit("AGENT_FALLBACK", {
                     "reason": "consecutive_tool_errors",
                     "count": state.consecutive_errors,
                 })
                 break
 
             # 1. Call LLM with tools
-            self._emit("REASONING", {
+            emit("REASONING", {
                 "iteration": state.iteration_count,
             })
+            emit("GENERATING_RESPONSE", {})
 
             try:
                 tools = self._registry.get_ollama_schemas()
@@ -197,7 +245,7 @@ class AgentOrchestrator:
             except RuntimeError as e:
                 logger.error("LLM call failed: %s", e)
                 state.error = f"LLM communication failed: {e}"
-                self._emit("AGENT_ERROR", {"error": str(e)})
+                emit("AGENT_ERROR", {"error": str(e)})
                 break
 
             # 2. Check if final answer (no tool calls)
@@ -207,7 +255,7 @@ class AgentOrchestrator:
                     "role": "assistant",
                     "content": state.final_answer,
                 })
-                self._emit("FINAL_ANSWER", {
+                emit("FINAL_ANSWER", {
                     "iteration": state.iteration_count,
                 })
                 logger.info(
@@ -258,10 +306,14 @@ class AgentOrchestrator:
                 # Record the tool call
                 state.add_tool_call(tc.name, tc.arguments)
 
-                self._emit("TOOL_EXECUTING", {
+                emit("TOOL_EXECUTING", {
                     "tool": tc.name,
                     "iteration": state.iteration_count,
                 })
+                if tc.name == "search_documents":
+                    emit("SEARCHING_VECTOR_DB", {})
+                elif tc.name == "search_knowledge_graph":
+                    emit("EXPANDING_KNOWLEDGE_GRAPH", {})
 
                 # Execute via ToolExecutor
                 result = self._execute_tool_sync(tc.name, tc.arguments)
@@ -274,7 +326,7 @@ class AgentOrchestrator:
                     "content": result.to_message_content(),
                 })
 
-                self._emit("TOOL_COMPLETED", {
+                emit("TOOL_COMPLETED", {
                     "tool": tc.name,
                     "success": result.success,
                     "execution_time_ms": result.execution_time_ms,
@@ -294,14 +346,14 @@ class AgentOrchestrator:
                     "Agent reached max iterations (%d)", state.max_iterations
                 )
                 state.final_answer = self._build_fallback_answer(state)
-                self._emit("AGENT_MAX_ITERATIONS", {
+                emit("AGENT_MAX_ITERATIONS", {
                     "max": state.max_iterations,
                 })
                 break
 
         # === BUILD RESULT ===
         elapsed = state.elapsed_seconds
-        self._emit("AGENT_COMPLETED", {
+        emit("AGENT_COMPLETED", {
             "execution_id": state.execution_id,
             "iterations": state.iteration_count,
             "tool_calls": len(state.tool_calls),
@@ -310,11 +362,30 @@ class AgentOrchestrator:
 
         answer = state.final_answer or state.error or "Agent execution failed without producing an answer."
 
+        # Extract citations from tool results if available
+        citations: list[dict[str, Any]] = []
+        seen_chunks: set[tuple[str, str]] = set()
+        for tr in state.tool_results:
+            if tr.success and hasattr(tr.result, "chunks") and tr.result.chunks:
+                for chunk in tr.result.chunks:
+                    doc_id = getattr(chunk, "document_id", "")
+                    chunk_id = getattr(chunk, "chunk_id", "")
+                    key = (doc_id, chunk_id)
+                    if key not in seen_chunks:
+                        seen_chunks.add(key)
+                        citations.append({
+                            "document_id": doc_id,
+                            "chunk_id": chunk_id,
+                            "page_index": getattr(chunk, "page_index", 0) if getattr(chunk, "page_index", None) is not None else 0,
+                            "source_text": getattr(chunk, "text", ""),
+                        })
+
         logger.info(
-            "Agent completed: execution_id=%s, iterations=%d, tools=%d, time=%.1fs",
+            "Agent completed: execution_id=%s, iterations=%d, tools=%d, citations=%d, time=%.1fs",
             state.execution_id,
             state.iteration_count,
             len(state.tool_calls),
+            len(citations),
             elapsed,
         )
 
@@ -326,6 +397,7 @@ class AgentOrchestrator:
             ],
             iterations=state.iteration_count,
             execution_time_seconds=elapsed,
+            citations=citations,
             error=state.error,
         )
 
