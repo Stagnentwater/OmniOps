@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { ApiClient } from "@/services/api";
 import { GraphData } from "@/components/RetrievalGraph";
 import { NavRail, ViewId } from "@/components/NavRail";
-import { ChatView } from "@/components/ChatView";
+import { ChatView, ChatMessageItem } from "@/components/ChatView";
 import { KnowledgeBaseView } from "@/components/KnowledgeBaseView";
 import { IngestionView } from "@/components/IngestionView";
 import { OverviewView } from "@/components/OverviewView";
@@ -33,7 +33,9 @@ export default function UnifiedPage() {
   const [chatSessions, setChatSessions] = useState<any[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   
-  // ─── Query State ─────────────────────────────────────────
+  // ─── Query & Messages State ──────────────────────────────
+  const [messages, setMessages] = useState<ChatMessageItem[]>([]);
+  const [streamingAnswer, setStreamingAnswer] = useState<string>("");
   const [queryInput, setQueryInput] = useState("");
   const [activeQuery, setActiveQuery] = useState("");
   const [activeMetadata, setActiveMetadata] = useState<any | null>(null);
@@ -45,15 +47,24 @@ export default function UnifiedPage() {
   useEffect(() => {
     fetchDocuments();
     fetchGraphData();
-    fetchChatSessions();
+    fetchChatSessions().then(sessions => {
+      if (typeof window !== "undefined") {
+        const savedSessionId = localStorage.getItem("omniops_active_session_id");
+        if (savedSessionId && sessions && sessions.some((s: any) => s.id === savedSessionId)) {
+          handleLoadSession(savedSessionId);
+        }
+      }
+    });
   }, []);
 
   const fetchChatSessions = async () => {
     try {
       const res = await ApiClient.getChatSessions();
       setChatSessions(res);
+      return res;
     } catch (err) {
       console.error("Failed to load sessions", err);
+      return [];
     }
   };
 
@@ -95,7 +106,7 @@ export default function UnifiedPage() {
   // ─── Query Execution ──────────────────────────────────────
   const handleQuerySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!queryInput.trim()) return;
+    if (!queryInput.trim() || mode === "querying") return;
 
     let currentSessionId = activeSessionId;
     if (!currentSessionId) {
@@ -103,6 +114,9 @@ export default function UnifiedPage() {
         const res = await ApiClient.createChatSession();
         currentSessionId = res.session_id;
         setActiveSessionId(currentSessionId);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("omniops_active_session_id", currentSessionId);
+        }
       } catch (err) {
         console.error("Failed to create session", err);
       }
@@ -110,10 +124,21 @@ export default function UnifiedPage() {
 
     const q = queryInput;
     setQueryInput("");
+
+    // Immediately append user message to conversation history
+    const userMsg: ChatMessageItem = {
+      id: `user-${Date.now()}`,
+      role: "user",
+      content: q,
+      created_at: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, userMsg]);
+
     setActiveQuery(q);
     setMode("querying");
     setCurrentStage("GENERATING_EMBEDDING");
     setAnswer("");
+    setStreamingAnswer("");
     setCitations([]);
     setActiveMetadata(null);
     setGraphViewMode("retrieval");
@@ -123,13 +148,29 @@ export default function UnifiedPage() {
         if (event.stage) setCurrentStage(event.stage);
         
         if (event.stage === "COMPLETED") {
-          setAnswer(event.result.answer);
-          setCitations(event.result.citations || []);
-          setActiveMetadata(event.result.metadata);
+          const finalAnswer = event.result.answer;
+          const finalCitations = event.result.citations || [];
+          const finalMetadata = event.result.metadata;
+
+          const asstMsg: ChatMessageItem = {
+            id: `asst-${Date.now()}`,
+            role: "assistant",
+            content: finalAnswer,
+            citations: finalCitations,
+            metadata: finalMetadata,
+            created_at: new Date().toISOString(),
+          };
+
+          setMessages(prev => [...prev, asstMsg]);
+          setAnswer(finalAnswer);
+          setCitations(finalCitations);
+          setActiveMetadata(finalMetadata);
+          setStreamingAnswer("");
           setMode("answered");
           fetchChatSessions();
         } else if (event.stage === "FAILED") {
-          setMode("idle");
+          setMode(messages.length > 0 ? "answered" : "idle");
+          setStreamingAnswer("");
           alert("Query failed: " + event.error);
         } else {
           if (event.metadata) {
@@ -138,8 +179,9 @@ export default function UnifiedPage() {
         }
       });
     } catch (err) {
-      console.error(err);
-      setMode("idle");
+      console.error("Query stream error", err);
+      setMode(messages.length > 0 ? "answered" : "idle");
+      setStreamingAnswer("");
     }
   };
 
@@ -147,21 +189,31 @@ export default function UnifiedPage() {
   const handleLoadSession = async (sessionId: string) => {
     try {
       const msgs = await ApiClient.getChatMessages(sessionId);
-      if (msgs.length > 0) {
-        const userMsg = msgs.slice().reverse().find(m => m.role === "user");
-        const asstMsg = msgs.slice().reverse().find(m => m.role === "assistant");
-        
-        setActiveQuery(userMsg ? userMsg.content : "");
-        setAnswer(asstMsg ? asstMsg.content : "");
-        setCitations(asstMsg ? (asstMsg.citations || []) : []);
-        setActiveMetadata(null);
-        setActiveSessionId(sessionId);
-        setCurrentStage("COMPLETED");
-        setMode("answered");
-        setGraphViewMode("global");
+      setActiveSessionId(sessionId);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("omniops_active_session_id", sessionId);
       }
+      if (msgs && msgs.length > 0) {
+        setMessages(msgs);
+        const lastUser = msgs.slice().reverse().find((m: any) => m.role === "user");
+        const lastAsst = msgs.slice().reverse().find((m: any) => m.role === "assistant");
+        
+        setActiveQuery(lastUser ? lastUser.content : "");
+        setAnswer(lastAsst ? lastAsst.content : "");
+        setCitations(lastAsst ? (lastAsst.citations || []) : []);
+        setMode("answered");
+      } else {
+        setMessages([]);
+        setActiveQuery("");
+        setAnswer("");
+        setCitations([]);
+        setMode("idle");
+      }
+      setActiveMetadata(null);
+      setCurrentStage("COMPLETED");
+      setGraphViewMode("global");
     } catch (err) {
-      console.error(err);
+      console.error("Failed to load session messages", err);
     }
   };
 
@@ -171,8 +223,7 @@ export default function UnifiedPage() {
     try {
       await ApiClient.deleteChatSession(sessionId);
       if (activeSessionId === sessionId) {
-        setMode("idle");
-        setActiveSessionId(null);
+        handleNewChat();
       }
       fetchChatSessions();
     } catch (err) {
@@ -182,11 +233,16 @@ export default function UnifiedPage() {
 
   const handleNewChat = () => {
     setMode("idle");
+    setMessages([]);
     setActiveQuery("");
     setAnswer("");
+    setStreamingAnswer("");
     setCitations([]);
     setActiveMetadata(null);
     setActiveSessionId(null);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("omniops_active_session_id");
+    }
     setGraphViewMode("global");
   };
 
@@ -221,9 +277,11 @@ export default function UnifiedPage() {
     }
   };
 
-  const renderAnswerWithCitations = () => {
-    if (!answer) return null;
-    let html = answer;
+  const renderAnswerWithCitations = (text?: string, msgCitations?: any[]) => {
+    const rawAnswer = text !== undefined ? text : answer;
+    if (!rawAnswer) return null;
+    let html = rawAnswer;
+    const currentCitations = msgCitations !== undefined ? msgCitations : citations;
     
     // Simple markdown bold parsing
     html = html.replace(/\*\*(.*?)\*\*/g, '<strong class="text-[var(--color-text-primary)] font-semibold">$1</strong>');
@@ -247,7 +305,7 @@ export default function UnifiedPage() {
     // Replace citation markers like [1], [2], or [Context #1] with interactive span elements
     html = html.replace(/\[(?:Context\s*#)?(\d+)\]/gi, (match, num) => {
       const idx = parseInt(num) - 1;
-      const citation = citations[idx];
+      const citation = currentCitations ? currentCitations[idx] : null;
       if (!citation) return "";
       
       const chunkId = citation.chunk_id;
@@ -274,8 +332,8 @@ export default function UnifiedPage() {
           const target = (e.target as HTMLElement).closest('.citation-marker');
           if (target) {
             const idxStr = target.getAttribute('data-idx');
-            if (idxStr !== null) {
-              const citation = citations[parseInt(idxStr)];
+            if (idxStr !== null && currentCitations) {
+              const citation = currentCitations[parseInt(idxStr)];
               if (citation) handleCitationClick(citation);
             }
           }
@@ -335,6 +393,7 @@ export default function UnifiedPage() {
               onLoadSession={handleLoadSession}
               onDeleteSession={handleDeleteSession}
               onNewChat={handleNewChat}
+              messages={messages}
               queryInput={queryInput}
               onQueryInputChange={setQueryInput}
               onQuerySubmit={handleQuerySubmit}
@@ -343,10 +402,12 @@ export default function UnifiedPage() {
               currentStage={currentStage}
               activeMetadata={activeMetadata}
               answer={answer}
+              streamingAnswer={streamingAnswer}
               citations={citations}
               hoveredCitationId={hoveredCitationId}
               onHoveredCitationIdChange={setHoveredCitationId}
               onCitationClick={handleCitationClick}
+              onSelectMessageCitations={setCitations}
               renderAnswerWithCitations={renderAnswerWithCitations}
               documents={documents}
             />
