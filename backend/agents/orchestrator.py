@@ -16,6 +16,7 @@ The orchestrator:
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import logging
 import time
 from dataclasses import dataclass, field
@@ -263,9 +264,7 @@ class AgentOrchestrator:
                 })
 
                 # Execute via ToolExecutor
-                result = asyncio.get_event_loop().run_until_complete(
-                    self._executor.execute(tc.name, tc.arguments)
-                )
+                result = self._execute_tool_sync(tc.name, tc.arguments)
 
                 state.tool_results.append(result)
 
@@ -355,6 +354,28 @@ class AgentOrchestrator:
             "processing steps. Please try rephrasing your question or "
             "breaking it into smaller parts."
         )
+
+    def _execute_tool_sync(self, tool_name: str, arguments: dict[str, Any]) -> ToolResult:
+        """Execute a tool coroutine synchronously, handling any event loop state."""
+        coro = self._executor.execute(tool_name, arguments)
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop is not None and loop.is_running():
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                return pool.submit(asyncio.run, coro).result()
+        else:
+            try:
+                curr_loop = asyncio.get_event_loop()
+                if curr_loop.is_closed():
+                    curr_loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(curr_loop)
+            except RuntimeError:
+                curr_loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(curr_loop)
+            return curr_loop.run_until_complete(coro)
 
     def _emit(self, stage: str, data: dict[str, Any]) -> None:
         """Emit an agent execution event."""

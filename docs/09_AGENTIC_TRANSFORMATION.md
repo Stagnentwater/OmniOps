@@ -294,15 +294,15 @@ safety: max iterations reached → fallback
 
 | Capability | Service | Agent Connector | Status |
 |---|---|---|---|
-| Vector Search | Qdrant | Not connected | DISCONNECTED |
+| Vector Search | Qdrant | `SearchDocumentsTool` | CONNECTED |
 | Graph Search | Neo4j | Not connected | DISCONNECTED |
 | Python Sandbox | calculation/ | Not connected | DISCONNECTED |
 | Vision Provider | generation/ | Not connected | DISCONNECTED |
 | P&ID Parser | parser/ | Not connected | DISCONNECTED |
 | Conversation | database/ | Auto (hardcoded) | HARDCODED |
-| Tool Registry | — | Does not exist | MISSING |
-| Agent State | — | Does not exist | MISSING |
-| Agent Loop | — | Does not exist | MISSING |
+| Tool Registry | agents/tool_registry.py | ToolRegistry | COMPLETE |
+| Agent State | agents/state.py | AgentState | COMPLETE |
+| Agent Loop | agents/orchestrator.py | AgentOrchestrator | COMPLETE |
 
 ---
 
@@ -310,11 +310,11 @@ safety: max iterations reached → fallback
 
 | Task ID | Title | Dependencies | Status |
 |---|---|---|---|
-| AGENT-ARCH-001 | Agent Foundation | None | NOT STARTED |
-| AGENT-OLLAMA-001 | Ollama Tool Calling Adapter | AGENT-ARCH-001 | NOT STARTED |
-| AGENT-CORE-001 | Minimal Agent Loop Proof | AGENT-OLLAMA-001 | NOT STARTED |
-| AGENT-RAG-001 | SearchDocuments Tool | AGENT-CORE-001 | NOT STARTED |
-| AGENT-GRAPH-001 | SearchKnowledgeGraph Tool | AGENT-CORE-001 | NOT STARTED |
+| AGENT-ARCH-001 | Agent Foundation | None | COMPLETE |
+| AGENT-OLLAMA-001 | Ollama Tool Calling Adapter | AGENT-ARCH-001 | COMPLETE |
+| AGENT-CORE-001 | Minimal Agent Loop Proof | AGENT-OLLAMA-001 | COMPLETE |
+| AGENT-RAG-001 | SearchDocuments Tool | AGENT-CORE-001 | COMPLETE |
+| AGENT-GRAPH-001 | SearchKnowledgeGraph Tool | AGENT-CORE-001 | NEXT |
 | AGENT-CALC-001 | Calculate Tool | AGENT-CORE-001 | NOT STARTED |
 | AGENT-VISION-001 | AnalyzeImage Tool | AGENT-CORE-001 | NOT STARTED |
 | AGENT-PID-001 | AnalyzePID Tool | AGENT-VISION-001 | NOT STARTED |
