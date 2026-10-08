@@ -239,3 +239,22 @@ def get_calculate_tool() -> "CalculateTool":
     from agents.tools.calculate import CalculateTool
 
     return CalculateTool(get_calculation_service())
+
+
+def get_vision_provider() -> "VisionProvider":
+    """Instantiate VisionProvider with configured vision model (gemma3:4b)."""
+    from generation.vision_provider import VisionProvider
+
+    settings = get_settings()
+    return VisionProvider(
+        base_url=settings.vision.ollama_base_url,
+        model=settings.vision.model_name,
+    )
+
+
+def get_analyze_image_tool() -> "AnalyzeImageTool":
+    """Instantiate AnalyzeImageTool backed by the application VisionProvider."""
+    from agents.tools.analyze_image import AnalyzeImageTool
+
+    return AnalyzeImageTool(get_vision_provider())
+

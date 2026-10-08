@@ -297,7 +297,7 @@ safety: max iterations reached → fallback
 | Vector Search | Qdrant | `SearchDocumentsTool` | CONNECTED |
 | Graph Search | Neo4j | `SearchKnowledgeGraphTool` | CONNECTED |
 | Python Sandbox | calculation/ | `CalculateTool` | CONNECTED |
-| Vision Provider | generation/ | Not connected | DISCONNECTED |
+| Vision Provider | generation/ | `AnalyzeImageTool` | CONNECTED |
 | P&ID Parser | parser/ | Not connected | DISCONNECTED |
 | Conversation | database/ | Auto (hardcoded) | HARDCODED |
 | Tool Registry | agents/tool_registry.py | ToolRegistry | COMPLETE |
@@ -316,8 +316,8 @@ safety: max iterations reached → fallback
 | AGENT-RAG-001 | SearchDocuments Tool | AGENT-CORE-001 | COMPLETE |
 | AGENT-GRAPH-001 | SearchKnowledgeGraph Tool | AGENT-CORE-001 | COMPLETE |
 | AGENT-CALC-001 | Calculate Tool | AGENT-CORE-001 | COMPLETE |
-| AGENT-VISION-001 | AnalyzeImage Tool | AGENT-CORE-001 | NEXT |
-| AGENT-PID-001 | AnalyzePID Tool | AGENT-VISION-001 | NOT STARTED |
+| AGENT-VISION-001 | AnalyzeImage Tool | AGENT-CORE-001 | COMPLETE |
+| AGENT-PID-001 | AnalyzePID Tool | AGENT-VISION-001 | NEXT |
 | AGENT-MULTI-001 | Multi-tool Orchestration | AGENT-RAG-001, AGENT-CALC-001 | NOT STARTED |
 | AGENT-MEMORY-001 | Agent Memory | AGENT-MULTI-001 | NOT STARTED |
 | AGENT-E2E-001 | End-to-End Validation | ALL above | NOT STARTED |
