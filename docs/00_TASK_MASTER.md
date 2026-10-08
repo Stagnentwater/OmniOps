@@ -26,7 +26,7 @@ Current Phase: Agentic Transformation
 
 Current Sprint: PHASE 16 — Agentic Architecture
 
-Current Task: AGENT-OLLAMA-001
+Current Task: AGENT-CORE-001
 
 Roadmap Source:
 - `docs/09_AGENTIC_TRANSFORMATION.md` is the architecture specification for the current phase.
@@ -94,6 +94,7 @@ Completed Tasks:
 - [x] V15-SANDBOX-ARCH-001 (Architecture approved — see docs/08_CALCULATION_SANDBOX_ARCHITECTURE.md)
 - [x] V15-SANDBOX-001
 - [x] AGENT-ARCH-001
+- [x] AGENT-OLLAMA-001
 
 Blocked Tasks:
 - None
