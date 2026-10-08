@@ -295,7 +295,7 @@ safety: max iterations reached → fallback
 | Capability | Service | Agent Connector | Status |
 |---|---|---|---|
 | Vector Search | Qdrant | `SearchDocumentsTool` | CONNECTED |
-| Graph Search | Neo4j | Not connected | DISCONNECTED |
+| Graph Search | Neo4j | `SearchKnowledgeGraphTool` | CONNECTED |
 | Python Sandbox | calculation/ | Not connected | DISCONNECTED |
 | Vision Provider | generation/ | Not connected | DISCONNECTED |
 | P&ID Parser | parser/ | Not connected | DISCONNECTED |
@@ -314,8 +314,8 @@ safety: max iterations reached → fallback
 | AGENT-OLLAMA-001 | Ollama Tool Calling Adapter | AGENT-ARCH-001 | COMPLETE |
 | AGENT-CORE-001 | Minimal Agent Loop Proof | AGENT-OLLAMA-001 | COMPLETE |
 | AGENT-RAG-001 | SearchDocuments Tool | AGENT-CORE-001 | COMPLETE |
-| AGENT-GRAPH-001 | SearchKnowledgeGraph Tool | AGENT-CORE-001 | NEXT |
-| AGENT-CALC-001 | Calculate Tool | AGENT-CORE-001 | NOT STARTED |
+| AGENT-GRAPH-001 | SearchKnowledgeGraph Tool | AGENT-CORE-001 | COMPLETE |
+| AGENT-CALC-001 | Calculate Tool | AGENT-CORE-001 | NEXT |
 | AGENT-VISION-001 | AnalyzeImage Tool | AGENT-CORE-001 | NOT STARTED |
 | AGENT-PID-001 | AnalyzePID Tool | AGENT-VISION-001 | NOT STARTED |
 | AGENT-MULTI-001 | Multi-tool Orchestration | AGENT-RAG-001, AGENT-CALC-001 | NOT STARTED |

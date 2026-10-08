@@ -26,7 +26,7 @@ Current Phase: Agentic Transformation
 
 Current Sprint: PHASE 16 — Agentic Architecture
 
-Current Task: AGENT-GRAPH-001
+Current Task: AGENT-CALC-001
 
 Roadmap Source:
 - `docs/09_AGENTIC_TRANSFORMATION.md` is the architecture specification for the current phase.
@@ -97,6 +97,7 @@ Completed Tasks:
 - [x] AGENT-OLLAMA-001
 - [x] AGENT-CORE-001
 - [x] AGENT-RAG-001
+- [x] AGENT-GRAPH-001
 
 Blocked Tasks:
 - None
