@@ -217,3 +217,25 @@ def get_ingestion_orchestrator(job_id: str) -> IngestionOrchestrator:
         embedding_provider=embedding_provider,
         status_callback=update_status
     )
+
+
+def get_calculation_service() -> "CalculationService":
+    """Instantiate CalculationService with SubprocessSandbox and CodeValidator."""
+    from calculation.service import CalculationService
+    from calculation.subprocess_sandbox import SubprocessSandboxProvider
+    from calculation.validator import CodeValidator
+
+    settings = get_settings()
+    return CalculationService(
+        sandbox=SubprocessSandboxProvider(),
+        validator=CodeValidator(),
+        timeout_seconds=5.0,
+        model_name=getattr(settings, "reasoning_model", "llama3.2"),
+    )
+
+
+def get_calculate_tool() -> "CalculateTool":
+    """Instantiate CalculateTool backed by the application CalculationService."""
+    from agents.tools.calculate import CalculateTool
+
+    return CalculateTool(get_calculation_service())
