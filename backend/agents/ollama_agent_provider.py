@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import urllib.request
 import urllib.error
 from dataclasses import dataclass, field
@@ -151,6 +152,13 @@ class OllamaAgentProvider:
             if name:
                 tool_calls.append(OllamaToolCall(name=name, arguments=arguments))
 
+        # Fallback: small models (e.g., llama3.2) sometimes output JSON tool calls in content
+        if not tool_calls and content.strip():
+            fallback_tc = self._try_parse_content_tool_call(content)
+            if fallback_tc is not None:
+                tool_calls.append(fallback_tc)
+                content = ""
+
         return OllamaChatResponse(
             content=content.strip(),
             tool_calls=tuple(tool_calls),
@@ -158,3 +166,40 @@ class OllamaAgentProvider:
             total_duration_ns=total_duration,
             eval_count=eval_count,
         )
+
+    @staticmethod
+    def _try_parse_content_tool_call(content: str) -> OllamaToolCall | None:
+        """Attempt to extract a JSON tool call if an LLM outputs raw JSON in content."""
+        text = content.strip()
+        cb_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+        candidates = [cb_match.group(1)] if cb_match else []
+        json_match = re.search(r"\{.*\}", text, re.DOTALL)
+        if json_match and json_match.group(0) not in candidates:
+            candidates.append(json_match.group(0))
+
+        known_tools = {
+            "search_documents",
+            "search_knowledge_graph",
+            "calculate",
+            "analyze_image",
+            "analyze_pid",
+            "system_status",
+        }
+        for cand in candidates:
+            try:
+                data = json.loads(cand)
+                if isinstance(data, dict):
+                    name = data.get("name") or data.get("tool")
+                    if isinstance(name, str) and name in known_tools:
+                        args = data.get("parameters") or data.get("arguments") or {}
+                        if isinstance(args, str):
+                            try:
+                                args = json.loads(args)
+                            except Exception:
+                                args = {"raw_input": args}
+                        elif not isinstance(args, dict):
+                            args = {}
+                        return OllamaToolCall(name=name, arguments=args)
+            except Exception:
+                continue
+        return None

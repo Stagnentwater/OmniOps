@@ -40,14 +40,17 @@ _SYSTEM_PROMPT = """You are OmniOps, an Industrial Intelligence Assistant for co
 You have access to tools that help you answer questions accurately. Use them when appropriate.
 
 IMPORTANT RULES:
-1. For factual questions about documents, equipment, or processes: use search_documents or search_knowledge_graph.
-2. For numerical calculations, unit conversions, or engineering equations: use the calculate tool. NEVER calculate numbers yourself.
-3. For image analysis: use analyze_image or analyze_pid.
-4. For simple greetings or general conversation: respond directly WITHOUT using any tools.
-5. Always base your final answer on tool results, not assumptions.
-6. If a tool returns an error, you may try a different approach or explain the limitation.
-7. Be concise and professional in your responses.
-8. Cite sources when using retrieved documents."""
+1. When asked to find, list, inspect, or count plant equipment (e.g., pumps, heat exchangers, columns, valves), always use search_knowledge_graph or search_documents.
+2. For multi-step questions requiring finding plant equipment/data AND performing a calculation:
+   - Always find the equipment or measurements first using search_knowledge_graph or search_documents.
+   - Do NOT call calculate until you know the real equipment count or measurements from the search results.
+3. For numerical calculations, unit conversions, or engineering equations: use the calculate tool. NEVER calculate numbers yourself. All variables in calculate must be explicitly assigned numbers.
+4. For image analysis: use analyze_image or analyze_pid.
+5. For simple greetings or general conversation: respond directly WITHOUT using any tools.
+6. Always base your final answer on real plant data retrieved from tools, never assume or fabricate equipment numbers.
+7. If a tool returns an error, use an alternative tool or search query to find the needed data.
+8. Be concise and professional in your responses.
+9. Cite sources when using retrieved documents."""
 
 
 def _sanitize_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -396,6 +399,19 @@ class AgentOrchestrator:
                 break
 
             # 3. Process tool calls
+            # If the LLM returned multiple tool calls in a single turn where
+            # calculate is paired with a retrieval tool, defer calculate so the agent
+            # observes the retrieval findings first before computing.
+            tool_calls_to_execute = list(response.tool_calls)
+            has_retrieval = any(tc.name in ("search_knowledge_graph", "search_documents") for tc in tool_calls_to_execute)
+            has_calculate = any(tc.name == "calculate" for tc in tool_calls_to_execute)
+
+            if has_retrieval and has_calculate and len(tool_calls_to_execute) > 1:
+                logger.info(
+                    "Deferring 'calculate' tool call to next iteration because retrieval tool is executing in current turn."
+                )
+                tool_calls_to_execute = [tc for tc in tool_calls_to_execute if tc.name != "calculate"]
+
             # Add assistant message with tool_calls to history
             assistant_msg: dict[str, Any] = {
                 "role": "assistant",
@@ -407,12 +423,12 @@ class AgentOrchestrator:
                             "arguments": tc.arguments,
                         }
                     }
-                    for tc in response.tool_calls
+                    for tc in tool_calls_to_execute
                 ],
             }
             state.messages.append(assistant_msg)
 
-            for tc in response.tool_calls:
+            for tc in tool_calls_to_execute:
                 # Duplicate detection
                 if state.has_duplicate_tool_call(tc.name, tc.arguments):
                     logger.warning(

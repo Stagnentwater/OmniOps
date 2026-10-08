@@ -65,12 +65,13 @@ class CalculateTool(Tool):
             name="calculate",
             description=(
                 "Executes deterministic mathematical equations, engineering formulas, "
-                "unit conversions, or numerical computations in a secure isolated sandbox. "
+                "unit conversions, or arithmetic computations in a secure isolated sandbox. "
+                "Use this tool when you need to calculate math or conversions on known numbers. "
                 "Allowed modules: math, statistics, decimal, fractions, datetime. "
                 "The code must assign its final result to a variable named 'result' "
-                "(e.g., result = flow_rate * cp * delta_t). "
-                "Alternatively, you can provide an 'expression' to evaluate directly. "
-                "NEVER compute numbers in your head or guess values; always use this tool."
+                "(e.g., result = 15.0 * 2.5). "
+                "The sandbox has NO plant equipment data; all variables used in code must be explicitly assigned numbers. "
+                "Alternatively, you can provide an 'expression' to evaluate directly."
             ),
             parameters={
                 "type": "object",
@@ -78,14 +79,15 @@ class CalculateTool(Tool):
                     "code": {
                         "type": "string",
                         "description": (
-                            "Python code to execute. Must define 'result' with the final calculated answer. "
-                            "Example: 'import math\\nresult = math.sqrt(144) * 2'"
+                            "Python math code to execute. Must define 'result' with the final calculated answer. "
+                            "All variables must be explicitly assigned numbers. "
+                            "Example: 'val = 12\\nresult = val * 5'"
                         ),
                     },
                     "expression": {
                         "type": "string",
                         "description": (
-                            "Alternative direct expression (e.g., '150 * 0.0689476' or '50 * 4.18 * 25'). "
+                            "Alternative direct expression (e.g., '150 * 0.0689476' or '5 * 2'). "
                             "Will automatically be wrapped as 'result = <expression>'."
                         ),
                     },
@@ -95,10 +97,6 @@ class CalculateTool(Tool):
                             "Optional dictionary of variable names and numerical values "
                             "(e.g., {'mass_flow': 50.0, 'cp': 4.184, 'delta_t': 25.0})."
                         ),
-                    },
-                    "query": {
-                        "type": "string",
-                        "description": "Optional description of what is being computed for auditing.",
                     },
                 },
                 "required": [],
@@ -134,11 +132,31 @@ class CalculateTool(Tool):
         final_code = ""
         if isinstance(code, str) and code.strip():
             raw_code = code.strip()
-            # If the user code doesn't set 'result' and is a simple single-line expression, wrap it
-            if not re.search(r"\bresult\s*=", raw_code) and "\n" not in raw_code:
-                final_code = f"result = {raw_code}"
-            else:
-                final_code = raw_code
+            # Unescape escaped newlines if passed literally from JSON (e.g. "x = 2\\ny = x * 5")
+            if "\\n" in raw_code:
+                raw_code = raw_code.replace("\\n", "\n")
+
+            # Ensure 'result' variable is assigned
+            import ast
+            needs_result = not bool(re.search(r"\bresult\s*=", raw_code))
+            if needs_result:
+                try:
+                    tree = ast.parse(raw_code)
+                    if tree.body:
+                        last_stmt = tree.body[-1]
+                        if isinstance(last_stmt, ast.Expr):
+                            lines = raw_code.splitlines()
+                            lines[-1] = f"result = {lines[-1]}"
+                            raw_code = "\n".join(lines)
+                        elif isinstance(last_stmt, ast.Assign) and last_stmt.targets and isinstance(last_stmt.targets[-1], ast.Name):
+                            raw_code = f"{raw_code}\nresult = {last_stmt.targets[-1].id}"
+                        elif isinstance(last_stmt, ast.AugAssign) and isinstance(last_stmt.target, ast.Name):
+                            raw_code = f"{raw_code}\nresult = {last_stmt.target.id}"
+                except SyntaxError:
+                    if "\n" not in raw_code:
+                        raw_code = f"result = {raw_code}"
+
+            final_code = raw_code
         elif isinstance(expression, str) and expression.strip():
             final_code = f"result = {expression.strip()}"
         else:
@@ -189,11 +207,14 @@ class CalculateTool(Tool):
                     execution_time_ms=calc_result.execution_time_ms,
                 )
             else:
+                err_msg = calc_result.error or "Calculation returned non-zero exit code."
+                if "NameError: name" in err_msg and "is not defined" in err_msg:
+                    err_msg += " [ADVICE: The calculation sandbox has no pre-defined plant variables. Use search_knowledge_graph or search_documents first to find the actual plant values/counts, then assign the variable a number in your code (e.g. pumps_count = 2).]"
                 return ToolResult(
                     tool_name="calculate",
                     success=False,
                     result=None,
-                    error=calc_result.error or "Calculation returned non-zero exit code.",
+                    error=err_msg,
                     execution_time_ms=calc_result.execution_time_ms,
                 )
 
