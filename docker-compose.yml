@@ -52,6 +52,12 @@ services:
       STORAGE_BACKEND: local
       STORAGE_LOCAL_ROOT: /data/storage
       EMBEDDING_MODEL_NAME: "all-MiniLM-L6-v2"
+      OLLAMA_BASE_URL: "http://host.docker.internal:11434"
+      VISION_MODEL: "gemma3:4b"
+      REASONING_MODEL: "llama3.2"
+      AGENT_MAX_ITERATIONS: "8"
+      AGENT_TIMEOUT_SECONDS: "120"
+      AGENT_ENABLED: "true"
       HF_HUB_OFFLINE: "1"
       TRANSFORMERS_OFFLINE: "1"
 
@@ -92,6 +98,12 @@ services:
       STORAGE_BACKEND: local
       STORAGE_LOCAL_ROOT: /data/storage
       EMBEDDING_MODEL_NAME: "all-MiniLM-L6-v2"
+      OLLAMA_BASE_URL: "http://host.docker.internal:11434"
+      VISION_MODEL: "gemma3:4b"
+      REASONING_MODEL: "llama3.2"
+      AGENT_MAX_ITERATIONS: "8"
+      AGENT_TIMEOUT_SECONDS: "120"
+      AGENT_ENABLED: "true"
       HF_HUB_OFFLINE: "1"
       TRANSFORMERS_OFFLINE: "1"
 

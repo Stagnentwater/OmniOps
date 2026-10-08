@@ -11,7 +11,8 @@ Status: Living Development Plan
 
 # Development Rules
 
-- Complete only ONE task at a time.
+- Complete only ONE task
+ at a time.
 - Never skip dependencies.
 - Every task must pass its evaluation.
 - Commit after every successful task.
@@ -21,15 +22,16 @@ Status: Living Development Plan
 
 # Current Status
 
-Current Phase: Version 1.5 — Intelligence and Reliability
+Current Phase: Agentic Transformation
 
-Current Sprint: Version 1.5 P1 — Automated Quality Gate
+Current Sprint: PHASE 16 — Agentic Architecture
 
-Current Task: V15-INTENT-001
+Current Task: AGENT-OLLAMA-001
 
 Roadmap Source:
-- `docs/Version1.md` is the current roadmap source for the next implementation phase.
-- `docs/06_VERSION_2_DESC.md` is explicitly deferred. It must not be used to select or redefine Version 1.5 tasks.
+- `docs/09_AGENTIC_TRANSFORMATION.md` is the architecture specification for the current phase.
+- `docs/Version1.md` was the roadmap for Version 1.5 (all V15 P1 tasks complete).
+- `docs/06_VERSION_2_DESC.md` is explicitly deferred.
 
 Completed Tasks:
 - [x] FOUND-001
@@ -82,6 +84,16 @@ Completed Tasks:
 - [x] INT-001
 - [x] V15-CONV-001
 - [x] V15-TEST-001
+- [x] V15-INTENT-001
+- [x] V15-ASSET-001
+- [x] V15-IMG-ARCH-001 (Architecture approved — see docs/07_IMAGE_INGESTION_ARCHITECTURE.md)
+- [x] V15-IMG-001
+- [x] V15-RANK-001
+- [x] V15-POOL-001
+- [x] V15-QUEUE-001
+- [x] V15-SANDBOX-ARCH-001 (Architecture approved — see docs/08_CALCULATION_SANDBOX_ARCHITECTURE.md)
+- [x] V15-SANDBOX-001
+- [x] AGENT-ARCH-001
 
 Blocked Tasks:
 - None
@@ -903,7 +915,345 @@ Prerequisites:
 - V15-SANDBOX-ARCH-001 approved
 
 Next:
-Future Version 1.5 maintenance work or explicitly approved Version 3 drafting work
+AGENT-ARCH-001
+
+---
+
+# PHASE 16 — Agentic Transformation
+
+Scope source: `docs/09_AGENTIC_TRANSFORMATION.md`. This phase transforms the single-shot RAG pipeline into a genuine tool-using, stateful, multi-step agentic system.
+
+## AGENT-ARCH-001
+
+Title: Agent Foundation
+
+Objective:
+Create the core agent abstractions: AgentState, Tool interface, ToolDefinition, ToolResult, ToolRegistry, ToolExecutor. Update vision model configuration from gemma4:e2b to gemma3:4b across all code locations. Add AgentSettings to configuration.
+
+Prerequisites:
+- V15-SANDBOX-001
+
+Files to Create:
+- `backend/agents/state.py`
+- `backend/agents/tool_interface.py`
+- `backend/agents/tool_registry.py`
+- `backend/agents/tool_executor.py`
+- `backend/agents/tools/__init__.py`
+- `backend/tests/test_agent_foundation.py`
+
+Files to Modify:
+- `backend/agents/__init__.py`
+- `backend/config/settings.py` (add AgentSettings, fix vision model defaults)
+- `.env` (VISION_MODEL=gemma3:4b, add AGENT_* vars)
+- `docker-compose.yml` (add OLLAMA_BASE_URL to api/worker)
+- `backend/generation/vision_provider.py` (default gemma3:4b)
+- `backend/services/model_router.py` (default gemma3:4b)
+
+Acceptance Criteria:
+- AgentState, Tool, ToolDefinition, ToolResult, ToolRegistry, ToolExecutor are importable
+- ToolRegistry can register, get, list, and get_definitions for tools
+- ToolExecutor dispatches tool calls to registered tools and returns ToolResult
+- All gemma4:e2b defaults changed to gemma3:4b in code
+- AgentSettings added with MAX_ITERATIONS, TIMEOUT_SECONDS
+- OLLAMA_BASE_URL added to docker-compose api/worker environment
+- Unit tests pass for all new abstractions
+- Existing tests pass (with model name updates for test expectations)
+
+Evaluation:
+Run backend tests.
+
+Commit:
+feat(agent): add agent foundation abstractions
+
+Next:
+AGENT-OLLAMA-001
+
+---
+
+## AGENT-OLLAMA-001
+
+Title: Ollama Tool Calling Adapter
+
+Objective:
+Create OllamaAgentProvider that uses Ollama's native /api/chat endpoint with the tools parameter. Verify Llama 3.2 tool calling works with real Ollama.
+
+Prerequisites:
+- AGENT-ARCH-001
+
+Files to Create:
+- `backend/agents/ollama_agent_provider.py`
+- `backend/tests/test_ollama_agent_provider.py`
+
+Acceptance Criteria:
+- Provider sends tools definitions in /api/chat requests
+- Provider parses tool_calls from Llama 3.2 responses
+- Provider handles tool result messages (role: tool)
+- Provider handles plain text responses (no tool call)
+- Unit tests with mocked HTTP responses
+- Integration test (if Ollama is accessible)
+
+Commit:
+feat(agent): add Ollama tool calling adapter
+
+Next:
+AGENT-CORE-001
+
+---
+
+## AGENT-CORE-001
+
+Title: Minimal Agent Loop Proof
+
+Objective:
+Create AgentOrchestrator with the full agent loop. Prove the architecture works with a dummy test tool (get_current_time or similar).
+
+Prerequisites:
+- AGENT-OLLAMA-001
+
+Files to Create:
+- `backend/agents/orchestrator.py`
+- `backend/agents/tools/system_status.py` (dummy tool for testing)
+- `backend/tests/test_agent_orchestrator.py`
+
+Acceptance Criteria:
+- AgentOrchestrator executes: LLM → tool call → tool result → LLM → final answer
+- Max iteration limit enforced
+- Timeout enforced
+- Duplicate tool call detection works
+- Error handling works (tool failure → agent can recover)
+- Streaming events emitted for tool execution stages
+
+Commit:
+feat(agent): implement agent orchestrator loop
+
+Next:
+AGENT-RAG-001
+
+---
+
+## AGENT-RAG-001
+
+Title: SearchDocuments Tool
+
+Objective:
+Wrap existing RetrievalService (Qdrant vector search) as an agent-accessible tool.
+
+Prerequisites:
+- AGENT-CORE-001
+
+Files to Create:
+- `backend/agents/tools/search_documents.py`
+- `backend/tests/test_tool_search_documents.py`
+
+Acceptance Criteria:
+- Tool wraps existing RetrievalService._retrieve_vectors
+- Agent can decide to search and receives chunk results
+- Existing retrieval internals unchanged
+
+Commit:
+feat(agent): add search_documents tool
+
+Next:
+AGENT-GRAPH-001
+
+---
+
+## AGENT-GRAPH-001
+
+Title: SearchKnowledgeGraph Tool
+
+Objective:
+Wrap existing GraphQueryService as an agent-accessible tool.
+
+Prerequisites:
+- AGENT-CORE-001
+
+Files to Create:
+- `backend/agents/tools/search_graph.py`
+- `backend/tests/test_tool_search_graph.py`
+
+Acceptance Criteria:
+- Tool wraps existing GraphQueryService search_nodes + expand_subgraph
+- Agent can query graph and receive entity/relationship results
+- Existing graph internals unchanged
+
+Commit:
+feat(agent): add search_knowledge_graph tool
+
+Next:
+AGENT-CALC-001
+
+---
+
+## AGENT-CALC-001
+
+Title: Calculate Tool
+
+Objective:
+Wrap existing CalculationService and sandbox as an agent-accessible tool.
+
+Prerequisites:
+- AGENT-CORE-001
+
+Files to Create:
+- `backend/agents/tools/calculate.py`
+- `backend/tests/test_tool_calculate.py`
+
+Files to Modify:
+- `backend/dependencies.py` (add CalculationService instantiation)
+
+Acceptance Criteria:
+- Tool wraps existing CalculationService
+- Agent can request calculations and receive validated results
+- Sandbox security preserved
+- Existing calculation internals unchanged
+
+Commit:
+feat(agent): add calculate tool
+
+Next:
+AGENT-VISION-001
+
+---
+
+## AGENT-VISION-001
+
+Title: AnalyzeImage Tool
+
+Objective:
+Create agent-accessible vision tool using VisionProvider with Gemma 3 4B.
+
+Prerequisites:
+- AGENT-CORE-001
+
+Files to Create:
+- `backend/agents/tools/analyze_image.py`
+- `backend/tests/test_tool_analyze_image.py`
+
+Acceptance Criteria:
+- Tool wraps existing VisionProvider
+- Uses configured vision model (gemma3:4b)
+- Agent can request image analysis at query time
+- Existing VisionProvider unchanged
+- Works gracefully if vision model not installed (error reported, not crash)
+
+Commit:
+feat(agent): add analyze_image tool
+
+Next:
+AGENT-PID-001
+
+---
+
+## AGENT-PID-001
+
+Title: AnalyzePID Tool
+
+Objective:
+Create structured P&ID analysis tool combining existing image parser with VisionProvider.
+
+Prerequisites:
+- AGENT-VISION-001
+
+Files to Create:
+- `backend/agents/tools/analyze_pid.py`
+- `backend/tests/test_tool_analyze_pid.py`
+
+Acceptance Criteria:
+- Returns structured output (equipment, connections, labels, confidence)
+- Uses existing P&ID prompt from image_parser.py
+- Leverages VisionProvider for inference
+
+Commit:
+feat(agent): add analyze_pid tool
+
+Next:
+AGENT-MULTI-001
+
+---
+
+## AGENT-MULTI-001
+
+Title: Multi-tool Orchestration
+
+Objective:
+Validate that the agent can chain multiple tools in sequence based on evolving state.
+
+Prerequisites:
+- AGENT-RAG-001
+- AGENT-GRAPH-001
+- AGENT-CALC-001
+
+Files to Create:
+- `backend/tests/test_agent_multi_tool.py`
+
+Acceptance Criteria:
+- Search → Calculate chain works
+- Search → Graph chain works
+- Agent selects tools based on results, not hardcoded sequence
+
+Commit:
+test(agent): validate multi-tool orchestration
+
+Next:
+AGENT-MEMORY-001
+
+---
+
+## AGENT-MEMORY-001
+
+Title: Agent Conversation Memory
+
+Objective:
+Connect existing conversation history to agent state for multi-turn interactions.
+
+Prerequisites:
+- AGENT-MULTI-001
+
+Files to Modify:
+- `backend/agents/orchestrator.py`
+- `backend/api/routes/query.py`
+
+Acceptance Criteria:
+- Agent receives prior conversation context
+- Cross-turn references resolved
+- Context limits respected
+
+Commit:
+feat(agent): integrate conversation memory
+
+Next:
+AGENT-E2E-001
+
+---
+
+## AGENT-E2E-001
+
+Title: End-to-End Validation
+
+Objective:
+Full end-to-end testing of the agentic system.
+
+Prerequisites:
+- ALL AGENT tasks above
+
+Files to Create:
+- `backend/tests/test_agent_e2e.py`
+
+Tests:
+1. No-tool query ("Hello") → direct answer
+2. Document query → SearchDocuments → answer
+3. Calculation query → Calculate → answer
+4. Search + Calculate chain
+5. Vision query (if model available)
+6. Multi-turn memory
+7. Max iterations safety
+
+Commit:
+test(agent): end-to-end agent validation
+
+Next:
+Future agent enhancements
 
 ---
 
@@ -914,3 +1264,4 @@ Never move to the next task until the current task:
 - Passes evaluation
 - Is committed to Git
 - Is documented if needed
+

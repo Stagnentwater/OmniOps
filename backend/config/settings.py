@@ -91,10 +91,17 @@ class QdrantSettings(BaseSettings):
 
 
 class OpenRouterSettings(BaseSettings):
-    """Settings for OpenRouter integration."""
+    """Settings for OpenRouter integration (legacy RAG fallback)."""
     base_url: str = Field(default="https://openrouter.ai/api/v1", validation_alias="OPENROUTER_BASE_URL")
     api_key: str = Field(..., validation_alias="OPENROUTER_API_KEY")
     model: str = Field(..., validation_alias="OPENROUTER_MODEL")
+
+
+class AgentSettings(BaseSettings):
+    """Settings for the agentic orchestration loop."""
+    max_iterations: int = Field(default=8, ge=1, le=20, validation_alias="AGENT_MAX_ITERATIONS")
+    timeout_seconds: float = Field(default=120.0, ge=10.0, validation_alias="AGENT_TIMEOUT_SECONDS")
+    enabled: bool = Field(default=True, validation_alias="AGENT_ENABLED")
 
 
 class StorageSettings(BaseSettings):
@@ -107,6 +114,27 @@ class EmbeddingSettings(BaseSettings):
     """Settings for embedding model selection."""
     model_config = SettingsConfigDict(protected_namespaces=())
     model_name: str = Field(default="BAAI/bge-m3", validation_alias="EMBEDDING_MODEL_NAME")
+
+
+class VisionSettings(BaseSettings):
+    """Settings for the image ingestion vision pipeline."""
+    model_config = SettingsConfigDict(protected_namespaces=())
+    model_name: str = Field(default="gemma3:4b", validation_alias="VISION_MODEL")
+    ollama_base_url: str = Field(default="http://localhost:11434", validation_alias="OLLAMA_BASE_URL")
+    max_image_size_mb: int = Field(default=20, validation_alias="VISION_MAX_IMAGE_SIZE_MB")
+    max_resolution: int = Field(default=2048, validation_alias="VISION_MAX_RESOLUTION")
+    max_concurrent_jobs: int = Field(default=1, validation_alias="VISION_MAX_CONCURRENT_JOBS")
+    max_batch_size: int = Field(default=10, validation_alias="VISION_MAX_BATCH_SIZE")
+    context_window: int = Field(default=4096, validation_alias="VISION_CONTEXT_WINDOW")
+
+
+class ModelRegistry(BaseSettings):
+    """Centralized model name configuration for multi-model routing."""
+    model_config = SettingsConfigDict(protected_namespaces=())
+    reasoning_model: str = Field(default="llama3.2", validation_alias="REASONING_MODEL")
+    vision_model: str = Field(default="gemma3:4b", validation_alias="VISION_MODEL")
+    embedding_model: str = Field(default="all-MiniLM-L6-v2", validation_alias="EMBEDDING_MODEL_NAME")
+    ollama_base_url: str = Field(default="http://localhost:11434", validation_alias="OLLAMA_BASE_URL")
 
 
 class Settings(BaseSettings):
@@ -124,9 +152,13 @@ class Settings(BaseSettings):
     openrouter: OpenRouterSettings = Field(default_factory=OpenRouterSettings) # Required
     storage: StorageSettings = Field(default_factory=StorageSettings)
     embedding: EmbeddingSettings = Field(default_factory=EmbeddingSettings)
+    vision: VisionSettings = Field(default_factory=VisionSettings)
+    models: ModelRegistry = Field(default_factory=ModelRegistry)
+    agent: AgentSettings = Field(default_factory=AgentSettings)
 
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     """Load, validate, and cache settings from process environment. Fails fast if required variables are missing."""
     return Settings()
+
