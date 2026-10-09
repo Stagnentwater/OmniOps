@@ -23,7 +23,7 @@ export default function UnifiedPage() {
   
   // ─── Interaction State ────────────────────────────────────
   const [graphViewMode, setGraphViewMode] = useState<"global" | "retrieval">("global");
-  const [activeDocViewer, setActiveDocViewer] = useState<{url: string, isPdf: boolean, filename: string} | null>(null);
+  const [activeDocViewer, setActiveDocViewer] = useState<{url: string, isPdf: boolean, isImage?: boolean, filename: string} | null>(null);
   const [activeCitationPreview, setActiveCitationPreview] = useState<{source_text: string, document_id: string, page_index: number, chunk_id: string} | null>(null);
   const [hoveredCitationId, setHoveredCitationId] = useState<string | null>(null);
 
@@ -326,6 +326,7 @@ export default function UnifiedPage() {
       const doc = documents.find(d => d.id === activeCitationPreview.document_id);
       const filename = doc?.filename || "document";
       const isPdf = filename.toLowerCase().endsWith(".pdf");
+      const isImage = /\.(png|jpe?g|tif|tiff)$/i.test(filename);
       
       const url = await ApiClient.getDocumentContentUrl(activeCitationPreview.document_id);
       
@@ -334,6 +335,7 @@ export default function UnifiedPage() {
       setActiveDocViewer({
         url: isPdf ? `${url}#page=${activeCitationPreview.page_index + 1}` : url,
         isPdf,
+        isImage,
         filename
       });
     } catch (err) {
@@ -631,12 +633,18 @@ export default function UnifiedPage() {
               </div>
               
               {/* Modal Body */}
-              <div className="flex-1 bg-[#2b2b2b] flex items-center justify-center relative">
+              <div className="flex-1 bg-[#2b2b2b] flex items-center justify-center relative overflow-hidden">
                 {activeDocViewer.isPdf ? (
                   <iframe 
                     src={activeDocViewer.url} 
                     className="w-full h-full border-none bg-white"
                     title="Document Viewer"
+                  />
+                ) : activeDocViewer.isImage ? (
+                  <img 
+                    src={activeDocViewer.url} 
+                    alt={activeDocViewer.filename}
+                    className="max-h-full max-w-full object-contain p-4"
                   />
                 ) : (
                   <div className="flex flex-col items-center justify-center text-center p-8">

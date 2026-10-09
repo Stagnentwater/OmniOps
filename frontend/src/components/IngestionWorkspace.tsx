@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { UploadCloud, File, Trash2, CheckCircle2, Circle, Loader2, Database, Network, GitMerge } from "lucide-react";
+import { UploadCloud, File, Image as ImageIcon, Trash2, CheckCircle2, Circle, Loader2, Database, Network, GitMerge } from "lucide-react";
 import { ApiClient } from "@/services/api";
 
 const STAGES = [
@@ -63,7 +63,11 @@ export function AssetList({ documents, onDeleteDocument }: AssetListProps) {
         documents.map(doc => (
           <div key={doc.id} className="flex items-center justify-between p-3 rounded-lg bg-[var(--color-surface-elevated)] border border-[var(--color-border)] group">
             <div className="flex items-center gap-3 overflow-hidden">
-              <File className="w-4 h-4 text-emerald-400 shrink-0" />
+              {/\.(png|jpe?g|tif|tiff)$/i.test(doc.filename) ? (
+                <ImageIcon className="w-4 h-4 text-blue-400 shrink-0" />
+              ) : (
+                <File className="w-4 h-4 text-emerald-400 shrink-0" />
+              )}
               <div className="flex flex-col overflow-hidden">
                 <span className="text-sm font-medium text-[var(--color-text-primary)] truncate">{doc.filename}</span>
                 <span className="text-[10px] text-[var(--color-text-muted)] font-mono truncate">{doc.id.substring(0, 12)}...</span>
@@ -141,7 +145,7 @@ export function UploadZone({ onDocumentAdded }: UploadZoneProps) {
     if (!file) return;
 
     // Validate file type
-    const validExtensions = [".pdf", ".docx", ".csv", ".xlsx", ".xls"];
+    const validExtensions = [".pdf", ".docx", ".csv", ".xlsx", ".xls", ".png", ".jpg", ".jpeg", ".tif", ".tiff"];
     const ext = "." + file.name.split(".").pop()?.toLowerCase();
     if (!validExtensions.includes(ext)) {
       alert(`Unsupported file type: ${ext}. Supported: ${validExtensions.join(", ")}`);
@@ -305,14 +309,14 @@ export function UploadZone({ onDocumentAdded }: UploadZoneProps) {
           {isDragOver ? "Drop file to upload" : "Upload Knowledge Document"}
         </p>
         <p className="text-xs text-[var(--color-text-muted)] mt-1">
-          {isDragOver ? "Release to begin ingestion" : "Drag & drop or click to browse — PDF, DOCX, CSV, XLSX"}
+          {isDragOver ? "Release to begin ingestion" : "Drag & drop or click to browse — PDF, DOCX, CSV, XLSX, Images"}
         </p>
         <input 
           type="file" 
           ref={fileInputRef} 
           onChange={handleUpload} 
           className="hidden" 
-          accept=".pdf,.docx,.csv,.xlsx,.xls"
+          accept=".pdf,.docx,.csv,.xlsx,.xls,.png,.jpg,.jpeg,.tif,.tiff"
           disabled={isUploading} 
         />
       </div>

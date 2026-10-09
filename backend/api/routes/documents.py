@@ -95,6 +95,11 @@ async def get_document_content(document_id: str, repo: MetadataRepository = Depe
         ".csv": "text/csv",
         ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         ".xls": "application/vnd.ms-excel",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".tif": "image/tiff",
+        ".tiff": "image/tiff",
     }
     media_type = mime_map.get(ext, "application/octet-stream")
     
