@@ -13,9 +13,15 @@ from generation.llm_provider import LLMProvider
 class OllamaLLMProvider(LLMProvider):
     """Executes reasoning tasks against a local Ollama instance."""
 
-    def __init__(self, base_url: str = "http://localhost:11434", model: str = "llama3") -> None:
+    def __init__(
+        self,
+        base_url: str = "http://localhost:11434",
+        model: str = "llama3.2",
+        timeout_seconds: float = 60.0,
+    ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
+        self.timeout = timeout_seconds
         self.logger = logging.getLogger(__name__)
 
     def generate(self, prompt_package: PromptPackage) -> RawGeneration:
@@ -50,7 +56,7 @@ class OllamaLLMProvider(LLMProvider):
         )
         
         try:
-            with urllib.request.urlopen(req) as response:
+            with urllib.request.urlopen(req, timeout=self.timeout) as response:
                 result = json.loads(response.read().decode("utf-8"))
                 
             return RawGeneration(

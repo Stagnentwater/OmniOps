@@ -92,19 +92,44 @@ export class ApiClient {
     return this.request<any>(`/documents/${id}`, { method: "DELETE" });
   }
 
-  static async query(text: string, documentIds: string[] | null = null, sessionId: string | null = null) {
+  static async query(
+    text: string, 
+    documentIds: string[] | null = null, 
+    sessionId: string | null = null,
+    imageBase64?: string | null,
+    imageFilename?: string | null
+  ) {
     return this.request<any>("/query", {
       method: "POST",
-      body: JSON.stringify({ query: text, document_ids: documentIds, session_id: sessionId }),
+      body: JSON.stringify({ 
+        query: text, 
+        document_ids: documentIds, 
+        session_id: sessionId,
+        image_base64: imageBase64,
+        image_filename: imageFilename,
+      }),
     });
   }
 
-  static async queryStream(text: string, documentIds: string[] | null = null, sessionId: string | null = null, onEvent: (event: any) => void) {
+  static async queryStream(
+    text: string, 
+    documentIds: string[] | null = null, 
+    sessionId: string | null = null, 
+    onEvent: (event: any) => void,
+    imageBase64?: string | null,
+    imageFilename?: string | null
+  ) {
     const url = `${API_BASE}/query/stream`;
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query: text, document_ids: documentIds, session_id: sessionId }),
+      body: JSON.stringify({ 
+        query: text, 
+        document_ids: documentIds, 
+        session_id: sessionId,
+        image_base64: imageBase64,
+        image_filename: imageFilename,
+      }),
     });
 
     if (!response.ok) {

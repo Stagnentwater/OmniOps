@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
@@ -5,6 +6,7 @@ import uuid
 import json
 import asyncio
 import time
+import base64
 from fastapi.responses import StreamingResponse
 from utils.event_bus import bus
 
@@ -14,6 +16,8 @@ from query.orchestrator import QueryOrchestrator
 from agents.orchestrator import AgentOrchestrator
 from config.settings import get_settings
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/query", tags=["Query"])
 
 class QueryRequest(BaseModel):
@@ -21,6 +25,8 @@ class QueryRequest(BaseModel):
     document_ids: Optional[List[str]] = None
     session_id: Optional[str] = None
     use_agent: Optional[bool] = None
+    image_base64: Optional[str] = None
+    image_filename: Optional[str] = None
 
 class CitationItem(BaseModel):
     document_id: str
@@ -32,6 +38,63 @@ class QueryResponse(BaseModel):
     answer: str
     citations: List[CitationItem]
     metadata: Dict[str, Any]
+
+
+def _process_attached_image(image_base64: str, image_filename: Optional[str] = None) -> tuple[str, str, str]:
+    """Decode and store image in StorageService and register in MetadataRepository.
+    
+    Returns:
+        (document_id, local_file_path, storage_url)
+    """
+    from hashlib import sha256
+    import os
+    from storage.factory import get_storage_service
+    from database.repositories import MetadataRepository, DocumentMetadata
+
+    clean_b64 = image_base64
+    if "," in clean_b64:
+        clean_b64 = clean_b64.split(",", 1)[1]
+
+    image_bytes = base64.b64decode(clean_b64)
+    doc_id = sha256(image_bytes).hexdigest()
+    fn = image_filename or f"image_{doc_id[:8]}.png"
+    ext = os.path.splitext(fn)[1].lower() or ".png"
+    mime_types = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".tif": "image/tiff",
+        ".tiff": "image/tiff",
+    }
+    content_type = mime_types.get(ext, "image/png")
+
+    storage = get_storage_service()
+    stored_obj = storage.put_bytes(
+        document_id=doc_id,
+        file_name=fn,
+        content_type=content_type,
+        data=image_bytes,
+    )
+
+    settings = get_settings()
+    local_path = os.path.abspath(os.path.join(settings.storage.local_root, stored_obj.storage_key))
+
+    try:
+        repo = MetadataRepository()
+        repo.save_document_metadata(
+            DocumentMetadata(
+                document_id=doc_id,
+                file_name=fn,
+                content_type=content_type,
+                stored_object=stored_obj,
+            )
+        )
+    except Exception as e:
+        logger.warning("Could not persist document metadata for chat image: %s", e)
+
+    storage_url = f"/documents/{doc_id}/content"
+    return doc_id, local_path, storage_url
+
 
 @router.post("", response_model=QueryResponse)
 async def submit_query(
@@ -47,7 +110,49 @@ async def submit_query(
         else settings.agent.enabled
     )
 
+    image_metadata = None
+    stored_path = None
+    agent_query = request.query
+    if request.image_base64:
+        doc_id, stored_path, storage_url = _process_attached_image(
+            request.image_base64, request.image_filename
+        )
+        fn = request.image_filename or f"image_{doc_id[:8]}.png"
+        image_metadata = {
+            "image_filename": fn,
+            "image_document_id": doc_id,
+            "image_url": storage_url,
+            "image_base64": request.image_base64,
+        }
+        agent_query = (
+            f"[Attached Image: '{fn}' located at '{stored_path}'. "
+            f"If visual inspection, equipment identification, gauge reading, or diagram analysis is needed, "
+            f"use analyze_image or analyze_pid with image_path='{stored_path}'].\n\n{request.query}"
+        )
+
     if not use_agent:
+        if stored_path and request.image_base64:
+            try:
+                from generation.vision_provider import VisionProvider
+                from services.image_chat_service import inject_image_context
+                vision_provider = VisionProvider(
+                    base_url=settings.vision.ollama_base_url,
+                    model=settings.vision.model_name,
+                )
+                raw_bytes = base64.b64decode(request.image_base64.split(",", 1)[-1])
+                classification = vision_provider.classify_image(raw_bytes)
+                desc = vision_provider.describe_image(raw_bytes)
+                inject_image_context(
+                    session_id=request.session_id or "",
+                    filename=image_metadata["image_filename"] if image_metadata else "image.png",
+                    classification=classification,
+                    extracted_text=desc.text,
+                    image_uri=f"file://{stored_path}",
+                    chat_repository=ChatRepository(),
+                )
+            except Exception as vision_err:
+                logger.warning("Failed non-agent vision analysis: %s", vision_err)
+
         result = legacy_orchestrator.answer_query(
             request.query,
             session_id=request.session_id,
@@ -76,10 +181,11 @@ async def submit_query(
             session_id=session_id,
             role="user",
             content=request.query,
+            metadata=image_metadata,
         )
 
     agent_result = agent_orchestrator.run(
-        query=request.query,
+        query=agent_query,
         conversation_id=session_id or "",
         exclude_message_id=user_message_id,
     )
@@ -135,6 +241,26 @@ async def stream_query(
         else settings.agent.enabled
     )
 
+    image_metadata = None
+    stored_path = None
+    agent_query = request.query
+    if request.image_base64:
+        doc_id, stored_path, storage_url = _process_attached_image(
+            request.image_base64, request.image_filename
+        )
+        fn = request.image_filename or f"image_{doc_id[:8]}.png"
+        image_metadata = {
+            "image_filename": fn,
+            "image_document_id": doc_id,
+            "image_url": storage_url,
+            "image_base64": request.image_base64,
+        }
+        agent_query = (
+            f"[Attached Image: '{fn}' located at '{stored_path}'. "
+            f"If visual inspection, equipment identification, gauge reading, or diagram analysis is needed, "
+            f"use analyze_image or analyze_pid with image_path='{stored_path}'].\n\n{request.query}"
+        )
+
     chat_repo = ChatRepository()
     session_id = request.session_id
     if not session_id:
@@ -144,11 +270,34 @@ async def stream_query(
         session_id=session_id,
         role="user",
         content=request.query,
+        metadata=image_metadata,
     )
 
     def run_query():
         try:
             if not use_agent:
+                if stored_path and request.image_base64:
+                    try:
+                        from generation.vision_provider import VisionProvider
+                        from services.image_chat_service import inject_image_context
+                        vision_provider = VisionProvider(
+                            base_url=settings.vision.ollama_base_url,
+                            model=settings.vision.model_name,
+                        )
+                        raw_bytes = base64.b64decode(request.image_base64.split(",", 1)[-1])
+                        classification = vision_provider.classify_image(raw_bytes)
+                        desc = vision_provider.describe_image(raw_bytes)
+                        inject_image_context(
+                            session_id=session_id,
+                            filename=image_metadata["image_filename"] if image_metadata else "image.png",
+                            classification=classification,
+                            extracted_text=desc.text,
+                            image_uri=f"file://{stored_path}",
+                            chat_repository=chat_repo,
+                        )
+                    except Exception as vision_err:
+                        logger.warning("Failed non-agent vision analysis in stream: %s", vision_err)
+
                 legacy_orchestrator.answer_query(
                     request.query,
                     session_id=session_id,
@@ -162,7 +311,7 @@ async def stream_query(
                     bus.publish(f"query_{session_id}", event)
 
                 agent_result = agent_orchestrator.run(
-                    query=request.query,
+                    query=agent_query,
                     conversation_id=session_id,
                     exclude_message_id=user_message_id,
                     on_event=emit_to_bus,

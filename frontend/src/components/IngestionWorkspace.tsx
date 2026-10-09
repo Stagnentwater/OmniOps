@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { UploadCloud, File, Trash2, CheckCircle2, Circle, Loader2, Database, Network, GitMerge } from "lucide-react";
+import { UploadCloud, File, Trash2, CheckCircle2, Circle, Loader2, Database, Network, GitMerge, ImageIcon } from "lucide-react";
 import { ApiClient } from "@/services/api";
 
 const STAGES = [
@@ -60,24 +60,31 @@ export function AssetList({ documents, onDeleteDocument }: AssetListProps) {
           No documents indexed yet.
         </div>
       ) : (
-        documents.map(doc => (
-          <div key={doc.id} className="flex items-center justify-between p-3 rounded-lg bg-[var(--color-surface-elevated)] border border-[var(--color-border)] group">
-            <div className="flex items-center gap-3 overflow-hidden">
-              <File className="w-4 h-4 text-emerald-400 shrink-0" />
-              <div className="flex flex-col overflow-hidden">
-                <span className="text-sm font-medium text-[var(--color-text-primary)] truncate">{doc.filename}</span>
-                <span className="text-[10px] text-[var(--color-text-muted)] font-mono truncate">{doc.id.substring(0, 12)}...</span>
+        documents.map(doc => {
+          const isImage = /\.(png|jpe?g|tiff?)$/i.test(doc.filename || "");
+          return (
+            <div key={doc.id} className="flex items-center justify-between p-3 rounded-lg bg-[var(--color-surface-elevated)] border border-[var(--color-border)] group">
+              <div className="flex items-center gap-3 overflow-hidden">
+                {isImage ? (
+                  <ImageIcon className="w-4 h-4 text-sky-400 shrink-0" />
+                ) : (
+                  <File className="w-4 h-4 text-emerald-400 shrink-0" />
+                )}
+                <div className="flex flex-col overflow-hidden">
+                  <span className="text-sm font-medium text-[var(--color-text-primary)] truncate">{doc.filename}</span>
+                  <span className="text-[10px] text-[var(--color-text-muted)] font-mono truncate">{doc.id.substring(0, 12)}...</span>
+                </div>
               </div>
+              <button 
+                onClick={(e) => { e.stopPropagation(); handleDelete(doc.id); }}
+                className="opacity-0 group-hover:opacity-100 p-1.5 text-red-400/70 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-all"
+                title="Delete document"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
             </div>
-            <button 
-              onClick={(e) => { e.stopPropagation(); handleDelete(doc.id); }}
-              className="opacity-0 group-hover:opacity-100 p-1.5 text-red-400/70 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-all"
-              title="Delete document"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
-        ))
+          );
+        })
       )}
     </div>
   );
@@ -141,7 +148,7 @@ export function UploadZone({ onDocumentAdded }: UploadZoneProps) {
     if (!file) return;
 
     // Validate file type
-    const validExtensions = [".pdf", ".docx", ".csv", ".xlsx", ".xls"];
+    const validExtensions = [".pdf", ".docx", ".csv", ".xlsx", ".xls", ".png", ".jpg", ".jpeg", ".tif", ".tiff"];
     const ext = "." + file.name.split(".").pop()?.toLowerCase();
     if (!validExtensions.includes(ext)) {
       alert(`Unsupported file type: ${ext}. Supported: ${validExtensions.join(", ")}`);
@@ -305,14 +312,14 @@ export function UploadZone({ onDocumentAdded }: UploadZoneProps) {
           {isDragOver ? "Drop file to upload" : "Upload Knowledge Document"}
         </p>
         <p className="text-xs text-[var(--color-text-muted)] mt-1">
-          {isDragOver ? "Release to begin ingestion" : "Drag & drop or click to browse — PDF, DOCX, CSV, XLSX"}
+          {isDragOver ? "Release to begin ingestion" : "Drag & drop or click to browse — PDF, DOCX, CSV, XLSX, PNG, JPG, TIFF"}
         </p>
         <input 
           type="file" 
           ref={fileInputRef} 
           onChange={handleUpload} 
           className="hidden" 
-          accept=".pdf,.docx,.csv,.xlsx,.xls"
+          accept=".pdf,.docx,.csv,.xlsx,.xls,.png,.jpg,.jpeg,.tif,.tiff"
           disabled={isUploading} 
         />
       </div>

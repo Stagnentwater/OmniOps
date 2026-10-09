@@ -12,6 +12,7 @@ from vector.qdrant_repository import QdrantVectorRepository
 from vector.qdrant_connection import QdrantConnectionManager
 from vector.embedding_provider import SentenceTransformerEmbeddingProvider
 from generation.openrouter_provider import OpenRouterLLMProvider
+from generation.ollama_provider import OllamaLLMProvider
 from retrieval.service import RetrievalService
 from generation.service import GenerationService
 from generation.prompt_builder import PromptBuilder
@@ -94,7 +95,18 @@ def get_query_orchestrator() -> "QueryOrchestrator":
     
     # 2. Instantiate Providers
     embedding_provider = SentenceTransformerEmbeddingProvider(settings.embedding.model_name)
-    llm_provider = OpenRouterLLMProvider(settings.openrouter)
+    if (
+        settings.openrouter.api_key == "ollama-local"
+        or not settings.openrouter.api_key
+        or "localhost" in settings.openrouter.base_url
+        or "host.docker.internal" in settings.openrouter.base_url
+    ):
+        llm_provider = OllamaLLMProvider(
+            base_url=settings.models.ollama_base_url,
+            model=settings.models.reasoning_model,
+        )
+    else:
+        llm_provider = OpenRouterLLMProvider(settings.openrouter)
     
     # 3. Instantiate Services
     graph_query = GraphQueryService(graph_repo)

@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { ApiClient } from "@/services/api";
 import { GraphData } from "@/components/RetrievalGraph";
 import { NavRail, ViewId } from "@/components/NavRail";
-import { ChatView, ChatMessageItem } from "@/components/ChatView";
+import { ChatView, ChatMessageItem, AttachedImageState } from "@/components/ChatView";
 import { AgentActivityItem } from "@/components/AgentActivityStream";
 import { KnowledgeBaseView } from "@/components/KnowledgeBaseView";
 import { IngestionView } from "@/components/IngestionView";
@@ -23,7 +23,8 @@ export default function UnifiedPage() {
   
   // ─── Interaction State ────────────────────────────────────
   const [graphViewMode, setGraphViewMode] = useState<"global" | "retrieval">("global");
-  const [activeDocViewer, setActiveDocViewer] = useState<{url: string, isPdf: boolean, filename: string} | null>(null);
+  const [activeDocViewer, setActiveDocViewer] = useState<{url: string, isPdf: boolean, isImage?: boolean, filename: string} | null>(null);
+  const [attachedImage, setAttachedImage] = useState<AttachedImageState | null>(null);
   const [activeCitationPreview, setActiveCitationPreview] = useState<{source_text: string, document_id: string, page_index: number, chunk_id: string} | null>(null);
   const [hoveredCitationId, setHoveredCitationId] = useState<string | null>(null);
 
@@ -108,7 +109,7 @@ export default function UnifiedPage() {
   // ─── Query Execution ──────────────────────────────────────
   const handleQuerySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!queryInput.trim() || mode === "querying") return;
+    if ((!queryInput.trim() && !attachedImage) || mode === "querying") return;
 
     let currentSessionId = activeSessionId;
     if (!currentSessionId) {
@@ -124,8 +125,15 @@ export default function UnifiedPage() {
       }
     }
 
-    const q = queryInput;
+    const q = queryInput.trim() || (attachedImage ? `Analyze image: ${attachedImage.filename}` : "");
+    const imgPayload = attachedImage ? {
+      base64: attachedImage.base64,
+      filename: attachedImage.filename,
+      previewUrl: attachedImage.previewUrl,
+    } : null;
+
     setQueryInput("");
+    setAttachedImage(null);
 
     // Immediately append user message to conversation history
     const userMsg: ChatMessageItem = {
@@ -133,6 +141,11 @@ export default function UnifiedPage() {
       role: "user",
       content: q,
       created_at: new Date().toISOString(),
+      metadata: imgPayload ? {
+        image_base64: imgPayload.base64,
+        image_filename: imgPayload.filename,
+        image_url: imgPayload.previewUrl,
+      } : undefined,
     };
     setMessages(prev => [...prev, userMsg]);
 
@@ -147,8 +160,12 @@ export default function UnifiedPage() {
     setGraphViewMode("retrieval");
 
     try {
-      await ApiClient.queryStream(q, null, currentSessionId, (event) => {
-        if (event.stage) setCurrentStage(event.stage);
+      await ApiClient.queryStream(
+        q, 
+        null, 
+        currentSessionId, 
+        (event) => {
+          if (event.stage) setCurrentStage(event.stage);
 
         // Process dynamic activity stream events
         if (event.type || event.message) {
@@ -238,7 +255,10 @@ export default function UnifiedPage() {
             setActiveMetadata((prev: any) => ({ ...prev, ...event.metadata }));
           }
         }
-      });
+      },
+      imgPayload?.base64,
+      imgPayload?.filename
+      );
     } catch (err) {
       console.error("Query stream error", err);
       setMode(messages.length > 0 ? "answered" : "idle");
@@ -326,6 +346,7 @@ export default function UnifiedPage() {
       const doc = documents.find(d => d.id === activeCitationPreview.document_id);
       const filename = doc?.filename || "document";
       const isPdf = filename.toLowerCase().endsWith(".pdf");
+      const isImage = /\.(png|jpe?g|tiff?)$/i.test(filename);
       
       const url = await ApiClient.getDocumentContentUrl(activeCitationPreview.document_id);
       
@@ -334,11 +355,21 @@ export default function UnifiedPage() {
       setActiveDocViewer({
         url: isPdf ? `${url}#page=${activeCitationPreview.page_index + 1}` : url,
         isPdf,
+        isImage,
         filename
       });
     } catch (err) {
       console.error("Failed to load document content", err);
     }
+  };
+
+  const handlePreviewImage = (url: string, filename: string) => {
+    setActiveDocViewer({
+      url,
+      isPdf: false,
+      isImage: true,
+      filename,
+    });
   };
 
   const renderAnswerWithCitations = (text?: string, msgCitations?: any[]) => {
@@ -475,6 +506,9 @@ export default function UnifiedPage() {
               onSelectMessageCitations={setCitations}
               renderAnswerWithCitations={renderAnswerWithCitations}
               documents={documents}
+              attachedImage={attachedImage}
+              onAttachedImageChange={setAttachedImage}
+              onPreviewImage={handlePreviewImage}
             />
           </motion.div>
         )}
@@ -638,6 +672,14 @@ export default function UnifiedPage() {
                     className="w-full h-full border-none bg-white"
                     title="Document Viewer"
                   />
+                ) : activeDocViewer.isImage ? (
+                  <div className="w-full h-full flex items-center justify-center p-6 bg-black/40 overflow-auto">
+                    <img 
+                      src={activeDocViewer.url} 
+                      alt={activeDocViewer.filename}
+                      className="max-w-full max-h-[75vh] object-contain rounded-xl shadow-2xl border border-[var(--color-border)]"
+                    />
+                  </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center text-center p-8">
                     <div className="w-16 h-16 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] flex items-center justify-center mb-4 shadow-lg">
