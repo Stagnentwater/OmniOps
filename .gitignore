@@ -132,8 +132,10 @@ weights/
 *.bin
 
 # ----------------------------
-# Local Uploads
+# Local Uploads & Context Dump
 # ----------------------------
+context_dump/
+
 
 
 # ----------------------------
