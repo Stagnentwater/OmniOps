@@ -50,7 +50,17 @@ IMPORTANT RULES:
 6. Always base your final answer on real plant data retrieved from tools, never assume or fabricate equipment numbers.
 7. If a tool returns an error, use an alternative tool or search query to find the needed data.
 8. Be concise and professional in your responses.
-9. Cite sources when using retrieved documents."""
+9. Cite sources when using retrieved documents.
+10. Image Analysis, Industrial Diagrams & Non-Refinery / Dummy Images:
+    - When an image is attached, you MUST invoke analyze_image or analyze_pid first before producing your final answer.
+    - When visual findings return for an industrial diagram, P&ID, or equipment photograph:
+      * Directly and thoroughly explain what is shown: walk through the equipment tags, valves, instrumentation loops, piping lines, and flow sequence.
+      * Include relevant operational context and safety notes alongside your explanation, but NEVER substitute generic safety warnings for the actual diagram explanation.
+    - When visual findings indicate the image is NOT related to a refinery or industrial plant (e.g., cartoons, memes, everyday items, animals, people, screenshots, dummy/unrelated images):
+      * Describe what is visible in the image clearly and naturally (identifying characters, objects, setting, actions, colors, text), exactly as you would for any normal image.
+      * Explicitly state that this image is not part of the refinery, industrial facility, or plant operations in any way.
+      * Clearly explain that because the image is not part of the refinery, any questions based on it regarding plant operations, equipment diagnostics, or refinery procedures cannot be answered.
+    - Under NO circumstances should you output raw tool syntax in your final response, ignore the image findings, refuse to describe what is seen, or substitute a generic canned greeting or safety disclaimer when asked about an attached diagram."""
 
 
 def _sanitize_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -205,6 +215,7 @@ class AgentOrchestrator:
         conversation_history: list[dict[str, Any]] | None = None,
         exclude_message_id: str | None = None,
         on_event: Callable[[str, dict[str, Any]], None] | None = None,
+        persona_instructions: str | None = None,
     ) -> AgentResult:
         """Execute the full agent loop for a user query.
 
@@ -216,6 +227,7 @@ class AgentOrchestrator:
             exclude_message_id: Optional message ID to exclude when loading
                 history from chat_repository (typically the current turn).
             on_event: Optional per-run event callback.
+            persona_instructions: Optional user persona and expertise directives.
 
         Returns:
             An AgentResult with the final answer, citations, and execution metadata.
@@ -261,10 +273,14 @@ class AgentOrchestrator:
             timeout_seconds=self._timeout,
         )
 
-        # Build initial messages
+        # Build initial messages with persona directives
+        effective_system_prompt = self._system_prompt
+        if persona_instructions and str(persona_instructions).strip():
+            effective_system_prompt = f"{self._system_prompt}\n\n{str(persona_instructions).strip()}"
+
         state.messages.append({
             "role": "system",
-            "content": self._system_prompt,
+            "content": effective_system_prompt,
         })
 
         # Resolve conversation history with strict bounds
@@ -577,6 +593,28 @@ class AgentOrchestrator:
         })
 
         answer = state.final_answer or state.error or "Agent execution failed without producing an answer."
+
+        # Safety guard: ensure raw tool invocation text is never presented as the final answer
+        raw_tool_prefixes = (
+            '"analyze_image"',
+            '"analyze_pid"',
+            '"search_documents"',
+            '"search_knowledge_graph"',
+            '"calculate"',
+            'analyze_image(',
+            'analyze_pid(',
+            'search_documents(',
+            'search_knowledge_graph(',
+            'calculate(',
+        )
+        if any(answer.strip().startswith(prefix) for prefix in raw_tool_prefixes):
+            # If tool results exist, present the visual findings
+            for tr in state.tool_results:
+                if tr.success and tr.result:
+                    answer = str(tr.result)
+                    break
+            else:
+                answer = "I inspected the diagram, but was unable to format a final answer. Please check the diagram labels and try asking again."
 
         # Extract citations from tool results if available
         citations: list[dict[str, Any]] = []

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { ApiClient } from "@/services/api";
+import { ApiClient, UserInfo } from "@/services/api";
 import { GraphData } from "@/components/RetrievalGraph";
 import { NavRail, ViewId } from "@/components/NavRail";
 import { ChatView, ChatMessageItem, AttachedImageState } from "@/components/ChatView";
@@ -9,7 +9,9 @@ import { AgentActivityItem } from "@/components/AgentActivityStream";
 import { KnowledgeBaseView } from "@/components/KnowledgeBaseView";
 import { IngestionView } from "@/components/IngestionView";
 import { OverviewView } from "@/components/OverviewView";
-import { X, BookOpen, Download, FileText } from "lucide-react";
+import { AuthModal } from "@/components/AuthModal";
+import { ProfileView } from "@/components/ProfileView";
+import { X, BookOpen, Download, FileText, LogOut, User as UserIcon } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function UnifiedPage() {
@@ -46,19 +48,80 @@ export default function UnifiedPage() {
   const [answer, setAnswer] = useState("");
   const [citations, setCitations] = useState<any[]>([]);
 
-  // ─── Load Initial Data ───────────────────────────────────
+  // ─── Authentication State ─────────────────────────────────
+  const [currentUser, setCurrentUser] = useState<UserInfo | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+
+  // ─── Load Initial Data & Authentication ───────────────────
   useEffect(() => {
+    const initAuthAndData = async () => {
+      const token = ApiClient.getToken();
+      if (!token) {
+        setIsAuthModalOpen(true);
+        return;
+      }
+      try {
+        const user = await ApiClient.getCurrentUser();
+        setCurrentUser(user);
+        fetchDocuments();
+        fetchGraphData();
+        fetchChatSessions().then(sessions => {
+          if (typeof window !== "undefined") {
+            const savedSessionId = localStorage.getItem("omniops_active_session_id");
+            if (savedSessionId && sessions && sessions.some((s: any) => s.id === savedSessionId)) {
+              handleLoadSession(savedSessionId);
+            }
+          }
+        });
+      } catch (err) {
+        console.warn("Auth token invalid or expired:", err);
+        ApiClient.clearToken();
+        setCurrentUser(null);
+        setIsAuthModalOpen(true);
+      }
+    };
+
+    initAuthAndData();
+
+    const handleUnauthorized = () => {
+      setCurrentUser(null);
+      setIsAuthModalOpen(true);
+    };
+    window.addEventListener("omniops:unauthorized", handleUnauthorized);
+
+    return () => {
+      window.removeEventListener("omniops:unauthorized", handleUnauthorized);
+    };
+  }, []);
+
+  const handleAuthSuccess = (user: UserInfo) => {
+    setCurrentUser(user);
+    setIsAuthModalOpen(false);
     fetchDocuments();
     fetchGraphData();
-    fetchChatSessions().then(sessions => {
-      if (typeof window !== "undefined") {
-        const savedSessionId = localStorage.getItem("omniops_active_session_id");
-        if (savedSessionId && sessions && sessions.some((s: any) => s.id === savedSessionId)) {
-          handleLoadSession(savedSessionId);
-        }
-      }
+    fetchChatSessions();
+  };
+
+  const handleSignOut = () => {
+    ApiClient.logout();
+    setCurrentUser(null);
+    setChatSessions([]);
+    setMessages([]);
+    setActiveSessionId(null);
+    setIsAuthModalOpen(true);
+  };
+
+  const handleProfileUpdated = (updatedProfile: any) => {
+    setCurrentUser(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        profile: updatedProfile,
+        name: updatedProfile.name,
+        designation: updatedProfile.designation,
+      };
     });
-  }, []);
+  };
 
   const fetchChatSessions = async () => {
     try {
@@ -471,8 +534,54 @@ export default function UnifiedPage() {
       {/* ─── Persistent Nav Rail ──────────────────────────────── */}
       <NavRail activeView={activeView} onViewChange={setActiveView} />
 
-      {/* ─── Main Content Area ────────────────────────────────── */}
-      <AnimatePresence mode="wait">
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
+        {/* Global Application Top Bar */}
+        <div className="h-10 border-b border-[var(--color-border)] bg-[var(--color-surface-elevated)]/40 px-4 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2 text-xs">
+            <span className="font-mono text-[10px] text-[var(--color-text-muted)] tracking-widest uppercase">
+              OmniOps // System Shell
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {currentUser ? (
+              <div className="flex items-center gap-3">
+                <div 
+                  onClick={() => setActiveView("profile")}
+                  className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-indigo-500/50 text-xs transition-colors cursor-pointer"
+                  title="Configure cognitive persona & profile settings"
+                >
+                  <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="font-medium text-[var(--color-text-primary)]">
+                    {currentUser.profile?.name || currentUser.name || currentUser.email}
+                  </span>
+                  <span className="text-[10px] text-[var(--color-text-muted)] font-mono border-l border-[var(--color-border)] pl-2">
+                    {currentUser.profile?.designation || currentUser.designation || "Operator"}
+                  </span>
+                </div>
+                <button
+                  onClick={handleSignOut}
+                  className="px-2.5 py-1 rounded-md text-xs font-medium text-[var(--color-text-muted)] hover:text-rose-400 hover:bg-rose-500/10 transition-colors flex items-center gap-1.5 cursor-pointer"
+                  title="Sign out of current operator session"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Sign Out</span>
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setIsAuthModalOpen(true)}
+                className="px-3 py-1 rounded-md text-xs font-medium text-indigo-400 bg-indigo-500/10 border border-indigo-500/30 hover:bg-indigo-500/20 transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <UserIcon className="w-3.5 h-3.5" />
+                <span>Sign In</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* ─── Main Content Area ────────────────────────────────── */}
+        <AnimatePresence mode="wait">
         {activeView === "chat" && (
           <motion.div
             key="chat"
@@ -562,7 +671,24 @@ export default function UnifiedPage() {
             <OverviewView refreshToken={statsRefreshToken} />
           </motion.div>
         )}
+
+        {activeView === "profile" && (
+          <motion.div
+            key="profile"
+            initial={{ opacity: 0, x: -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 8 }}
+            transition={{ duration: 0.15 }}
+            className="flex-1 flex overflow-hidden"
+          >
+            <ProfileView
+              currentUser={currentUser}
+              onProfileUpdated={handleProfileUpdated}
+            />
+          </motion.div>
+        )}
       </AnimatePresence>
+      </div>
 
       {/* ─── Citation Source Preview Modal ────────────────────── */}
       <AnimatePresence>
@@ -706,6 +832,14 @@ export default function UnifiedPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ─── Authentication Modal ────────────────────── */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        canClose={Boolean(currentUser)}
+        onClose={() => setIsAuthModalOpen(false)}
+        onSuccess={handleAuthSuccess}
+      />
 
     </div>
   );

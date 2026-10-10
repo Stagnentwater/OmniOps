@@ -33,6 +33,7 @@ class GenerationService:
         self,
         context: RetrievalContext,
         conversation_history: Sequence[ConversationTurn] = (),
+        persona_instructions: str | None = None,
     ) -> GenerationResult:
         """Process the retrieval context to generate a validated answer."""
         
@@ -40,6 +41,7 @@ class GenerationService:
         prompt_package, context_mapping = self._prompt_builder.build(
             context,
             conversation_history=conversation_history,
+            persona_instructions=persona_instructions,
         )
         
         try:

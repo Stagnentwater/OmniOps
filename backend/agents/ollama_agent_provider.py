@@ -169,13 +169,10 @@ class OllamaAgentProvider:
 
     @staticmethod
     def _try_parse_content_tool_call(content: str) -> OllamaToolCall | None:
-        """Attempt to extract a JSON tool call if an LLM outputs raw JSON in content."""
+        """Attempt to extract a tool call if an LLM outputs tool syntax in content."""
         text = content.strip()
-        cb_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
-        candidates = [cb_match.group(1)] if cb_match else []
-        json_match = re.search(r"\{.*\}", text, re.DOTALL)
-        if json_match and json_match.group(0) not in candidates:
-            candidates.append(json_match.group(0))
+        if not text:
+            return None
 
         known_tools = {
             "search_documents",
@@ -185,21 +182,82 @@ class OllamaAgentProvider:
             "analyze_pid",
             "system_status",
         }
+
+        # Format 1: Function call syntax like analyze_image(image_path="...")
+        fn_match = re.match(r"^([a-zA-Z0-9_]+)\s*\((.*)\)\s*$", text, re.DOTALL)
+        if fn_match:
+            tool_name = fn_match.group(1)
+            if tool_name in known_tools:
+                arg_str = fn_match.group(2).strip()
+                kw_pairs = re.findall(
+                    r'([a-zA-Z0-9_]+)\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^,\s]+))',
+                    arg_str,
+                )
+                args: dict[str, Any] = {}
+                for k, v1, v2, v3 in kw_pairs:
+                    args[k] = v1 or v2 or v3
+                return OllamaToolCall(name=tool_name, arguments=args)
+
+        # Format 2: Comma-separated syntax like "analyze_image", "image_path": "..." or analyze_image, {"image_path": "..."}
+        cs_match = re.match(r'^["\']?([a-zA-Z0-9_]+)["\']?\s*,\s*(.*)$', text, re.DOTALL)
+        if cs_match:
+            tool_name = cs_match.group(1)
+            if tool_name in known_tools:
+                rem = cs_match.group(2).strip()
+                rem_clean = rem.replace(r"\&", "&")
+                candidates_to_try = [rem_clean]
+                if not rem_clean.startswith("{"):
+                    candidates_to_try.insert(0, "{" + rem_clean + "}")
+                for cand in candidates_to_try:
+                    try:
+                        parsed_args = json.loads(cand)
+                        if isinstance(parsed_args, dict):
+                            return OllamaToolCall(name=tool_name, arguments=parsed_args)
+                    except Exception:
+                        pass
+
+        # Format 3: JSON embedded in markdown fences or curly braces
+        cb_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+        candidates = [cb_match.group(1)] if cb_match else []
+        json_match = re.search(r"\{.*\}", text, re.DOTALL)
+        if json_match and json_match.group(0) not in candidates:
+            candidates.append(json_match.group(0))
+
         for cand in candidates:
             try:
                 data = json.loads(cand)
                 if isinstance(data, dict):
+                    # Check {"function": {"name": ..., "arguments": ...}}
+                    if "function" in data and isinstance(data["function"], dict):
+                        f_data = data["function"]
+                        name = f_data.get("name")
+                        args = f_data.get("arguments", {})
+                        if isinstance(name, str) and name in known_tools:
+                            if isinstance(args, str):
+                                try:
+                                    args = json.loads(args)
+                                except Exception:
+                                    args = {"raw_input": args}
+                            return OllamaToolCall(
+                                name=name,
+                                arguments=args if isinstance(args, dict) else {},
+                            )
+
                     name = data.get("name") or data.get("tool")
                     if isinstance(name, str) and name in known_tools:
-                        args = data.get("parameters") or data.get("arguments") or {}
-                        if isinstance(args, str):
+                        args = data.get("parameters") or data.get("arguments")
+                        if args is None:
+                            # Flat dictionary like {"name": "analyze_image", "image_path": "..."}
+                            args = {k: v for k, v in data.items() if k not in ("name", "tool")}
+                        elif isinstance(args, str):
                             try:
                                 args = json.loads(args)
                             except Exception:
                                 args = {"raw_input": args}
-                        elif not isinstance(args, dict):
+                        if not isinstance(args, dict):
                             args = {}
                         return OllamaToolCall(name=name, arguments=args)
             except Exception:
                 continue
+
         return None

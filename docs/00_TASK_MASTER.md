@@ -1,7 +1,7 @@
 # 00_TASK_MASTER.md
 
 # OmniOps Development Task Master
-Version: 1.5.0
+Version: 3.0.0
 Status: Living Development Plan
 
 > This document is the execution roadmap for OmniOps.
@@ -11,8 +11,7 @@ Status: Living Development Plan
 
 # Development Rules
 
-- Complete only ONE task
- at a time.
+- Complete only ONE task at a time.
 - Never skip dependencies.
 - Every task must pass its evaluation.
 - Commit after every successful task.
@@ -22,14 +21,15 @@ Status: Living Development Plan
 
 # Current Status
 
-Current Phase: Agentic Transformation
+Current Phase: Phase 17 — Version 3: Authentication, User Profiles, and Persona-Aware Intelligence (COMPLETE)
 
-Current Sprint: PHASE 16 — Agentic Architecture
+Current Sprint: Sprint 17.5 — Security Audit & Full Regression Suite Verification (COMPLETE)
 
-Current Task: COMPLETE (All Phase 16 Tasks Completed)
+Current Task: ALL PHASE 17 TASKS COMPLETE (611 tests passing)
 
 Roadmap Source:
-- `docs/09_AGENTIC_TRANSFORMATION.md` is the architecture specification for the current phase.
+- `Docs/version 3.md` is the architecture blueprint and implementation specification for Version 3.
+- `docs/09_AGENTIC_TRANSFORMATION.md` was the architecture specification for Phase 16 (complete).
 - `docs/Version1.md` was the roadmap for Version 1.5 (all V15 P1 tasks complete).
 - `docs/06_VERSION_2_DESC.md` is explicitly deferred.
 
@@ -104,6 +104,24 @@ Completed Tasks:
 - [x] AGENT-MULTI-001
 - [x] AGENT-MEMORY-001
 - [x] AGENT-E2E-001
+- [x] V3-PLAN-001 (Architecture Blueprint & Taskmaster Integration — Docs/version 3.md created)
+- [x] V3-REGRESS-001 (Baseline Regression & Environment Verification — 537 tests passed)
+- [x] V3-SCHEMA-001 (PostgreSQL User & Profile Schema Architecture — UserRepository & omniops container verified)
+- [x] V3-AUTH-BE-001 (Backend Authentication Service & Cryptography — PBKDF2 & JWT token service)
+- [x] V3-AUTH-API-001 (FastAPI Authentication Routes — /auth/register, /auth/login, /auth/me)
+
+- [x] V3-PROF-API-001 (User Profile API & Ownership Enforcement — /profile)
+- [x] V3-AUTH-FE-001 (Frontend Authentication State, Modal/Forms, and Token Interceptor)
+- [x] V3-PROF-FE-001 (Frontend Profile Settings View & Navigation Integration)
+- [x] V3-PERSONA-BLD-001 (Persona Context Builder & Prompt Synthesizer)
+- [x] V3-PERSONA-AGENT-001 (Agent Orchestrator Persona Integration)
+- [x] V3-PERSONA-LEGACY-001 (Legacy Query Orchestrator & PromptBuilder Persona Integration)
+- [x] V3-CHAT-ISOL-001 (Chat Session User Affiliation & Ownership Isolation)
+- [x] V3-DEMO-E2E-001 (Two-Persona Demonstration & Evaluation Benchmark)
+- [x] V3-SEC-REGRESS-001 (Security Audit & Full Regression Suite Verification — 611 tests passed)
+
+Pending Tasks (Version 3):
+- None (All Phase 17 Version 3 tasks completed and verified)
 
 Blocked Tasks:
 - None
@@ -1263,7 +1281,673 @@ Commit:
 test(agent): end-to-end agent validation
 
 Next:
-Future agent enhancements
+V3-PLAN-001
+
+---
+
+# PHASE 17 — Version 3: Authentication, User Profiles, and Persona-Aware Intelligence
+
+Roadmap Source: `Docs/version 3.md`  
+Constraint: **ARCHITECTURE FREEZE IS IN EFFECT.** Implement every task by extending the existing VigilOps architecture. Do not redesign, replace, migrate, or refactor unrelated architectural components. Any architectural change requires explicit prior approval from the project owner.
+
+---
+
+## V3-PLAN-001
+
+**Title:** Version 3 Technical Blueprint and Taskmaster Integration
+
+**Objective:**
+Inspect the repository, define the Version 3 technical specification adhering strictly to the architecture freeze, create `Docs/version 3.md`, and integrate the dependency-aware implementation plan into `docs/00_TASK_MASTER.md`.
+
+**Prerequisites:**
+- AGENT-E2E-001
+
+**Input:**
+- Repository inspection findings
+- `docs/01_CONTEXT.md`, `docs/02_SYSTEM_ARCHITECTURE.md`, `docs/09_AGENTIC_TRANSFORMATION.md`
+- Frozen technology constraints
+
+**Expected Output:**
+- `Docs/version 3.md` containing all 20 required sections
+- Updated `docs/00_TASK_MASTER.md` with honest starting state and actionable Phase 17 tasks
+
+**Files to Create / Modify:**
+- `Docs/version 3.md` (Created)
+- `docs/00_TASK_MASTER.md` (Modified)
+
+**Implementation Notes:**
+- Architectural freeze strictly preserved: no code or schema modified.
+- Planning and documentation only.
+
+**Acceptance Criteria:**
+- `Docs/version 3.md` exists and contains all 20 required sections.
+- `docs/00_TASK_MASTER.md` incorporates Phase 17 without deleting any prior tasks.
+- First actionable implementation task is explicitly identified.
+
+**Evaluation:**
+- Verify file existence, schema examples, prompt templates, and task integrity.
+
+**Status:**
+COMPLETED
+
+**Suggested Commit Message:**
+docs(v3): create Version 3 architecture blueprint and update taskmaster
+
+**Next Task:**
+V3-REGRESS-001
+
+---
+
+## V3-REGRESS-001
+
+**Title:** Baseline Regression & Test Environment Verification
+
+**Objective:**
+Verify that the existing test suite (all 537 tests across unit, graph, calculation sandbox, and agent modules) executes and passes cleanly before writing any Version 3 code.
+
+**Prerequisites:**
+- V3-PLAN-001
+
+**Input:**
+- Existing test suite under `backend/tests/`
+
+**Expected Output:**
+- Clean execution run verifying 537 tests passing with 0 failures and 0 errors.
+
+**Files to Create / Modify:**
+- None (Verification task)
+
+**Implementation Notes:**
+- Mandatory constraint: Implement this task by extending the existing VigilOps architecture. Do not redesign, replace, migrate, or refactor unrelated architectural components. Any architectural change requires explicit prior approval from the project owner.
+- Run `.\.venv\Scripts\python.exe -m unittest discover -s tests` from `backend/`.
+
+**Acceptance Criteria:**
+- 100% of existing tests pass cleanly.
+- Baseline output logged and verified.
+
+**Evaluation:**
+- Unittest exit code 0.
+
+**Status:**
+COMPLETED
+
+**Suggested Commit Message:**
+test(v3): verify baseline regression test pass
+
+**Next Task:**
+V3-SCHEMA-001
+
+---
+
+## V3-SCHEMA-001
+
+**Title:** PostgreSQL User & Profile Schema Architecture
+
+**Objective:**
+Create `backend/database/user_repository.py` with `UserRepository` implementing `users` and `user_profiles` schema management via standard `psycopg` connection and `_ensure_tables`, following the exact pattern of `repositories.py` and `chat_repository.py`.
+
+**Prerequisites:**
+- V3-REGRESS-001
+
+**Input:**
+- Database design defined in `Docs/version 3.md` Section 8
+
+**Expected Output:**
+- `backend/database/user_repository.py`
+- `backend/tests/test_user_repository.py`
+
+**Files to Create / Modify:**
+- `backend/database/user_repository.py` (Create)
+- `backend/tests/test_user_repository.py` (Create)
+
+**Implementation Notes:**
+- Mandatory constraint: Implement this task by extending the existing VigilOps architecture. Do not redesign, replace, migrate, or refactor unrelated architectural components. Any architectural change requires explicit prior approval from the project owner.
+- Schema includes `users` (user_id TEXT PK, email TEXT UNIQUE, password_hash TEXT, is_active BOOLEAN, created_at, updated_at) and `user_profiles` (user_id TEXT PK FK, name TEXT, skill_set JSONB, designation TEXT, refinery_experience_level TEXT CHECK, preferred_explanation_depth TEXT CHECK, created_at, updated_at).
+- Use `psycopg.connect(settings.postgres.dsn, row_factory=dict_row)`.
+
+**Acceptance Criteria:**
+- Tables created idempotently via `_ensure_tables`.
+- CRUD operations for users and profiles succeed.
+- Foreign key cascade delete verified.
+- Unit tests pass with mock PostgreSQL connection / test doubles.
+
+**Evaluation:**
+- `python -m unittest tests.test_user_repository` passes.
+
+**Status:**
+COMPLETED
+
+**Suggested Commit Message:**
+feat(database): implement user and profile repository schema
+
+**Next Task:**
+V3-AUTH-BE-001
+
+---
+
+## V3-AUTH-BE-001
+
+**Title:** Backend Authentication Service & Cryptography
+
+**Objective:**
+Implement `backend/services/auth_service.py` to handle password hashing, password verification, token generation, and token decoding/validation.
+
+**Prerequisites:**
+- V3-SCHEMA-001
+
+**Input:**
+- Auth specifications from `Docs/version 3.md` Section 6
+
+**Expected Output:**
+- `backend/services/auth_service.py`
+- `backend/tests/test_auth_service.py`
+
+**Files to Create / Modify:**
+- `backend/services/auth_service.py` (Create)
+- `backend/config/settings.py` (Modify — add AuthSettings)
+- `backend/tests/test_auth_service.py` (Create)
+
+**Implementation Notes:**
+- Mandatory constraint: Implement this task by extending the existing VigilOps architecture. Do not redesign, replace, migrate, or refactor unrelated architectural components. Any architectural change requires explicit prior approval from the project owner.
+- Password hashing using salted cryptographic hashing (PBKDF2-HMAC-SHA256 with 600,000 iterations or approved Argon2id).
+- Tokens include user ID (`sub`), email, issued-at (`iat`), and expiration (`exp`).
+
+**Acceptance Criteria:**
+- Correct password verification returns True; incorrect returns False.
+- Generated tokens decode successfully before expiration.
+- Expired or tampered tokens raise structured authentication exceptions.
+
+**Evaluation:**
+- `python -m unittest tests.test_auth_service` passes.
+
+**Status:**
+COMPLETED
+
+**Suggested Commit Message:**
+feat(auth): implement backend password hashing and token validation service
+
+**Next Task:**
+V3-AUTH-API-001
+
+---
+
+## V3-AUTH-API-001
+
+**Title:** FastAPI Authentication Routes (/auth/register, /auth/login, /auth/me)
+
+**Objective:**
+Implement authentication endpoints in `backend/api/routes/auth.py` and register with `backend/main.py`. Provide dependency `get_current_user` in `backend/dependencies.py`.
+
+**Prerequisites:**
+- V3-AUTH-BE-001
+
+**Input:**
+- API contracts from `Docs/version 3.md` Section 9
+
+**Expected Output:**
+- `backend/api/routes/auth.py`
+- Route registrations in `backend/main.py`
+- Authentication dependency in `backend/dependencies.py`
+- Unit tests in `backend/tests/test_auth_api.py`
+
+**Files to Create / Modify:**
+- `backend/api/routes/auth.py` (Create)
+- `backend/dependencies.py` (Modify)
+- `backend/main.py` (Modify)
+- `backend/tests/test_auth_api.py` (Create)
+
+**Implementation Notes:**
+- Mandatory constraint: Implement this task by extending the existing VigilOps architecture. Do not redesign, replace, migrate, or refactor unrelated architectural components. Any architectural change requires explicit prior approval from the project owner.
+- `POST /auth/register`: Validates email, hashes password, inserts user & profile, returns token.
+- `POST /auth/login`: Validates credentials, returns token.
+- `GET /auth/me`: Requires Bearer token via `Depends(get_current_user)`, returns current user.
+
+**Acceptance Criteria:**
+- Registration with valid data returns 201 and token.
+- Duplicate email returns 409 Conflict.
+- Login with incorrect password returns 401 Unauthorized.
+- Unauthenticated access to `/auth/me` returns 401.
+
+**Evaluation:**
+- FastAPI TestClient tests pass.
+
+**Status:**
+COMPLETED
+
+**Suggested Commit Message:**
+feat(api): add user registration, login, and me endpoints
+
+**Next Task:**
+V3-PROF-API-001
+
+---
+
+## V3-PROF-API-001
+
+**Title:** User Profile API & Authorization Enforcement (/profile)
+
+**Objective:**
+Implement profile retrieval and update endpoints in `backend/api/routes/profile.py`, enforcing user ownership checks so users can only view and update their own profile.
+
+**Prerequisites:**
+- V3-AUTH-API-001
+
+**Input:**
+- Profile contracts from `Docs/version 3.md` Section 9
+
+**Expected Output:**
+- `backend/api/routes/profile.py`
+- Unit tests in `backend/tests/test_profile_api.py`
+
+**Files to Create / Modify:**
+- `backend/api/routes/profile.py` (Create)
+- `backend/main.py` (Modify)
+- `backend/tests/test_profile_api.py` (Create)
+
+**Implementation Notes:**
+- Mandatory constraint: Implement this task by extending the existing VigilOps architecture. Do not redesign, replace, migrate, or refactor unrelated architectural components. Any architectural change requires explicit prior approval from the project owner.
+- `GET /profile`: returns profile for `current_user.user_id`.
+- `PUT /profile`: validates `refinery_experience_level` and `preferred_explanation_depth`, updates fields, updates `updated_at`, returns updated profile.
+
+**Acceptance Criteria:**
+- Authenticated user can fetch their own profile.
+- Updates to designation, skills, experience level, and explanation depth persist.
+- Invalid experience level returns 422 Unprocessable Entity.
+- Unauthenticated requests return 401.
+
+**Evaluation:**
+- API unit tests pass.
+
+**Status:**
+COMPLETED
+
+**Suggested Commit Message:**
+feat(api): implement user profile retrieval and update endpoints
+
+**Next Task:**
+V3-AUTH-FE-001
+
+---
+
+## V3-AUTH-FE-001
+
+**Title:** Frontend Authentication State, Modal/Forms, and Token Interceptor
+
+**Objective:**
+Add authentication UI to the Next.js frontend, including sign-in and registration forms, session persistence in localStorage, and automatic Authorization header injection in `ApiClient`.
+
+**Prerequisites:**
+- V3-PROF-API-001
+
+**Input:**
+- UI specifications from `Docs/version 3.md` Section 10
+
+**Expected Output:**
+- `frontend/src/components/AuthModal.tsx`
+- Updated `frontend/src/services/api.ts`
+- Updated `frontend/src/app/page.tsx`
+
+**Files to Create / Modify:**
+- `frontend/src/components/AuthModal.tsx` (Create)
+- `frontend/src/services/api.ts` (Modify)
+- `frontend/src/app/page.tsx` (Modify)
+
+**Implementation Notes:**
+- Mandatory constraint: Implement this task by extending the existing VigilOps architecture. Do not redesign, replace, migrate, or refactor unrelated architectural components. Any architectural change requires explicit prior approval from the project owner.
+- Style using the existing dark industrial palette (`--color-surface`, `--color-border`, `--color-accent`).
+- Store token securely in `localStorage` (`omniops_auth_token`).
+- `ApiClient.request` and `ApiClient.queryStream` attach `Authorization: Bearer <token>`.
+- On 401 responses, clear token and display login modal.
+
+**Acceptance Criteria:**
+- User can enter credentials and log in.
+- Token persisted across page refreshes.
+- Logout clears token and resets session state.
+- Unauthorized requests cleanly trigger re-authentication.
+
+**Evaluation:**
+- Manual browser verification and frontend lint check (`npm run lint`).
+
+**Status:**
+COMPLETED
+
+**Suggested Commit Message:**
+feat(ui): add authentication modal and token interceptor
+
+**Next Task:**
+V3-PROF-FE-001
+
+---
+
+## V3-PROF-FE-001
+
+**Title:** Frontend Profile Settings View & Navigation Integration
+
+**Objective:**
+Create `frontend/src/components/ProfileView.tsx` and integrate it into `NavRail.tsx` and `page.tsx` so users can edit their designation, skills, experience level, and explanation depth preference.
+
+**Prerequisites:**
+- V3-AUTH-FE-001
+
+**Input:**
+- Profile design from `Docs/version 3.md` Section 10
+
+**Expected Output:**
+- `frontend/src/components/ProfileView.tsx`
+- Updated `frontend/src/components/NavRail.tsx`
+- Updated `frontend/src/app/page.tsx`
+
+**Files to Create / Modify:**
+- `frontend/src/components/ProfileView.tsx` (Create)
+- `frontend/src/components/NavRail.tsx` (Modify)
+- `frontend/src/app/page.tsx` (Modify)
+
+**Implementation Notes:**
+- Mandatory constraint: Implement this task by extending the existing VigilOps architecture. Do not redesign, replace, migrate, or refactor unrelated architectural components. Any architectural change requires explicit prior approval from the project owner.
+- Form controls for `name`, `designation`, `skill_set` (tag editor), `refinery_experience_level` (radio selector: Beginner / Intermediate / Advanced / Expert), and `preferred_explanation_depth` (radio selector: Concise / Moderate / Detailed).
+- Save action calls `PUT /profile` via `ApiClient.updateProfile()`.
+- Visual feedback on save and error handling.
+
+**Acceptance Criteria:**
+- Navigating to "Profile" shows the current user profile.
+- Updating fields and clicking Save updates the backend.
+- Reloading the page reflects the updated values.
+
+**Evaluation:**
+- Manual browser test and Next.js lint pass.
+
+**Status:**
+COMPLETED
+
+**Suggested Commit Message:**
+feat(ui): add profile settings view and navigation rail item
+
+**Next Task:**
+V3-PERSONA-BLD-001
+
+---
+
+## V3-PERSONA-BLD-001
+
+**Title:** Persona Context Builder & Prompt Synthesizer
+
+**Objective:**
+Implement `backend/generation/persona_builder.py` with `PersonaContextBuilder` to convert a validated `UserProfile` into authoritative, structured system directives for the LLM.
+
+**Prerequisites:**
+- V3-PROF-FE-001
+
+**Input:**
+- Persona builder design from `Docs/version 3.md` Section 11
+
+**Expected Output:**
+- `backend/generation/persona_builder.py`
+- `backend/tests/test_persona_builder.py`
+
+**Files to Create / Modify:**
+- `backend/generation/persona_builder.py` (Create)
+- `backend/tests/test_persona_builder.py` (Create)
+
+**Implementation Notes:**
+- Mandatory constraint: Implement this task by extending the existing VigilOps architecture. Do not redesign, replace, migrate, or refactor unrelated architectural components. Any architectural change requires explicit prior approval from the project owner.
+- Generates distinct communication instructions for each experience level:
+  - Beginner: explain foundational mechanisms, define acronyms, step-by-step reasoning.
+  - Expert: concise, direct, high-density terminology, zero remedial definitions.
+- Enforces non-negotiable safety guardrails: never omit hazardous material warnings or Lockout/Tagout procedures.
+- Enforces evidence grounding: facts must come from retrieved context.
+
+**Acceptance Criteria:**
+- Returns properly structured string with user metadata and role rules.
+- Safely handles missing or empty profile attributes using default persona.
+- Sanitizes user strings to prevent prompt injection.
+
+**Evaluation:**
+- `python -m unittest tests.test_persona_builder` passes.
+
+**Status:**
+COMPLETED
+
+**Suggested Commit Message:**
+feat(generation): implement persona context builder with safety rules
+
+**Next Task:**
+V3-PERSONA-AGENT-001
+
+---
+
+## V3-PERSONA-AGENT-001
+
+**Title:** Agent Orchestrator Persona Integration
+
+**Objective:**
+Extend `AgentOrchestrator` in `backend/agents/orchestrator.py` and `POST /query/stream` in `backend/api/routes/query.py` so the agentic loop incorporates the authenticated user's persona directives into its system instructions.
+
+**Prerequisites:**
+- V3-PERSONA-BLD-001
+
+**Input:**
+- Query pipeline and persona integration design from `Docs/version 3.md` Section 11
+
+**Expected Output:**
+- Updated `backend/agents/orchestrator.py`
+- Updated `backend/api/routes/query.py`
+- Unit tests in `backend/tests/test_agent_persona.py`
+
+**Files to Create / Modify:**
+- `backend/agents/orchestrator.py` (Modify)
+- `backend/api/routes/query.py` (Modify)
+- `backend/tests/test_agent_persona.py` (Create)
+
+**Implementation Notes:**
+- Mandatory constraint: Implement this task by extending the existing VigilOps architecture. Do not redesign, replace, migrate, or refactor unrelated architectural components. Any architectural change requires explicit prior approval from the project owner.
+- In `api/routes/query.py`, require `current_user = Depends(get_current_user)`.
+- Fetch `user_profile = user_repo.get_profile(current_user.user_id)`.
+- Generate `persona_instructions = PersonaContextBuilder.build(user_profile)`.
+- Pass `persona_instructions` to `agent_orchestrator.run()`.
+- Inside `AgentOrchestrator.run()`, combine `self._system_prompt` and `persona_instructions` into the initial system message.
+
+**Acceptance Criteria:**
+- Authenticated requests pass persona directives into the agent prompt.
+- Agent activities stream correctly over SSE.
+- Changes to user profile immediately alter subsequent query answers without application restart.
+
+**Evaluation:**
+- `python -m unittest tests.test_agent_persona` passes.
+
+**Status:**
+COMPLETED
+
+**Suggested Commit Message:**
+feat(agent): inject authenticated user persona into agent orchestrator
+
+**Next Task:**
+V3-PERSONA-LEGACY-001
+
+---
+
+## V3-PERSONA-LEGACY-001
+
+**Title:** Legacy Query Orchestrator & PromptBuilder Persona Integration
+
+**Objective:**
+Extend `PromptBuilder` in `backend/generation/prompt_builder.py` and `QueryOrchestrator` in `backend/query/orchestrator.py` so the non-agentic fallback RAG pipeline also respects the authenticated user's persona.
+
+**Prerequisites:**
+- V3-PERSONA-AGENT-001
+
+**Input:**
+- PromptBuilder specifications from `Docs/version 3.md` Section 11
+
+**Expected Output:**
+- Updated `backend/generation/prompt_builder.py`
+- Updated `backend/query/orchestrator.py`
+- Unit tests in `backend/tests/test_legacy_persona.py`
+
+**Files to Create / Modify:**
+- `backend/generation/prompt_builder.py` (Modify)
+- `backend/query/orchestrator.py` (Modify)
+- `backend/tests/test_legacy_persona.py` (Create)
+
+**Implementation Notes:**
+- Mandatory constraint: Implement this task by extending the existing VigilOps architecture. Do not redesign, replace, migrate, or refactor unrelated architectural components. Any architectural change requires explicit prior approval from the project owner.
+- Add optional `persona_instructions` parameter to `PromptBuilder.build()`.
+- Inject persona instructions into the system prompt block of `PromptPackage`.
+
+**Acceptance Criteria:**
+- Legacy RAG query execution correctly applies persona directives.
+- Citations `[Context #N]` continue to be resolved deterministically.
+
+**Evaluation:**
+- `python -m unittest tests.test_legacy_persona` passes.
+
+**Status:**
+COMPLETED
+
+**Suggested Commit Message:**
+feat(query): integrate persona directives into legacy prompt builder
+
+**Next Task:**
+V3-CHAT-ISOL-001
+
+---
+
+## V3-CHAT-ISOL-001
+
+**Title:** Chat Session User Affiliation & Ownership Isolation
+
+**Objective:**
+Link `chat_sessions` to `user_id` in PostgreSQL and enforce ownership in `backend/api/routes/chat.py` and `backend/database/chat_repository.py` so users only access their own chat history.
+
+**Prerequisites:**
+- V3-PERSONA-LEGACY-001
+
+**Input:**
+- Database design from `Docs/version 3.md` Section 8
+
+**Expected Output:**
+- Updated `backend/database/chat_repository.py`
+- Updated `backend/api/routes/chat.py`
+- Unit tests in `backend/tests/test_chat_isolation.py`
+
+**Files to Create / Modify:**
+- `backend/database/chat_repository.py` (Modify)
+- `backend/api/routes/chat.py` (Modify)
+- `backend/tests/test_chat_isolation.py` (Create)
+
+**Implementation Notes:**
+- Mandatory constraint: Implement this task by extending the existing VigilOps architecture. Do not redesign, replace, migrate, or refactor unrelated architectural components. Any architectural change requires explicit prior approval from the project owner.
+- `_ensure_tables` adds `user_id TEXT` column to `chat_sessions` if not exists.
+- `create_session(user_id=...)` records owning user.
+- `list_sessions(user_id=...)` filters by `user_id`.
+- `get_messages` and `delete_session` verify ownership before returning or deleting.
+
+**Acceptance Criteria:**
+- User A cannot view, access, or delete User B's chat sessions.
+- Unauthenticated chat session requests return 401.
+
+**Evaluation:**
+- Unit tests pass.
+
+**Status:**
+COMPLETED
+
+**Suggested Commit Message:**
+feat(chat): associate chat sessions with authenticated user and enforce ownership
+
+**Next Task:**
+V3-DEMO-E2E-001
+
+---
+
+## V3-DEMO-E2E-001
+
+**Title:** Two-Persona Demonstration & Evaluation Benchmark
+
+**Objective:**
+Implement and execute the reproducible two-persona verification test defined in `Docs/version 3.md` Section 12, validating that Beginner and Expert users receive tailored responses to the identical heat exchanger question.
+
+**Prerequisites:**
+- V3-CHAT-ISOL-001
+
+**Input:**
+- Demonstration question: *"Why is a pressure drop observed across a heat exchanger, and what should be checked to investigate it?"*
+- Persona A: Alex Chen (Graduate Trainee, Beginner, Detailed)
+- Persona B: Dr. Marcus Vance (Senior Process Engineer, Expert, Concise)
+
+**Expected Output:**
+- Test script `backend/tests/test_two_persona_demonstration.py`
+- Evaluation results verifying the 7 comparison dimensions (definitions, length, technical depth, grounding, facts, diagnostics, safety)
+
+**Files to Create / Modify:**
+- `backend/tests/test_two_persona_demonstration.py` (Create)
+
+**Implementation Notes:**
+- Mandatory constraint: Implement this task by extending the existing VigilOps architecture. Do not redesign, replace, migrate, or refactor unrelated architectural components. Any architectural change requires explicit prior approval from the project owner.
+- Both users query the exact same knowledge base with identical retrieval settings.
+- Verify that Beginner answer contains foundational explanations and acronym definitions.
+- Verify that Expert answer is concise, high-density, and omits basic definitions.
+- Verify that both answers retain mandatory safety precautions.
+
+**Acceptance Criteria:**
+- Test passes automatically and outputs side-by-side comparison.
+- All 7 evaluation criteria from the Section 12 matrix are satisfied.
+
+**Evaluation:**
+- `python -m unittest tests.test_two_persona_demonstration` passes.
+
+**Status:**
+COMPLETED
+
+**Suggested Commit Message:**
+test(v3): implement automated two-persona evaluation benchmark
+
+**Next Task:**
+V3-SEC-REGRESS-001
+
+---
+
+## V3-SEC-REGRESS-001
+
+**Title:** Security Audit & Full Regression Suite Verification
+
+**Objective:**
+Execute the full test suite including all 537 existing regression tests and all new Version 3 tests, verify no secrets are logged or leaked, and complete the final acceptance checklist.
+
+**Prerequisites:**
+- V3-DEMO-E2E-001
+
+**Input:**
+- Entire backend and frontend test suites
+
+**Expected Output:**
+- 100% test pass rate across all suites.
+- Verified absence of security regressions.
+
+**Files to Create / Modify:**
+- None (Verification task)
+
+**Implementation Notes:**
+- Mandatory constraint: Implement this task by extending the existing VigilOps architecture. Do not redesign, replace, migrate, or refactor unrelated architectural components. Any architectural change requires explicit prior approval from the project owner.
+- Run `.\.venv\Scripts\python.exe -m unittest discover -s tests` from `backend/`.
+- Run frontend lint: `npm run lint` from `frontend/`.
+- Verify that passwords, tokens, and confidential keys are redacted in all logs.
+
+**Acceptance Criteria:**
+- All 537 original regression tests pass without regression.
+- All new Phase 17 unit and integration tests pass.
+- Architecture freeze confirmed intact.
+
+**Evaluation:**
+- Complete test suite passes with zero failures.
+
+**Status:**
+COMPLETED
+
+**Suggested Commit Message:**
+test(v3): execute final security audit and complete regression verification
+
+**Next Task:**
+None (Version 3 Complete)
 
 ---
 

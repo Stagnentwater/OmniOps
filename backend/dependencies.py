@@ -1,6 +1,9 @@
 """Dependency Injection configuration for FastAPI."""
 
-from fastapi import Request
+from fastapi import Request, Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from database.user_repository import UserRepository, User
+from services.auth_service import AuthService, get_auth_service, ExpiredTokenError, InvalidTokenError
 
 from config.settings import get_settings
 from database.repositories import MetadataRepository
@@ -334,5 +337,60 @@ def get_agent_orchestrator() -> "AgentOrchestrator":
         chat_repository=chat_repo,
         max_history_turns=settings.query.conversation_history_limit,
     )
+
+
+_auth_bearer = HTTPBearer(auto_error=False)
+
+
+def get_user_repo() -> UserRepository:
+    """Dependency provider returning an initialized UserRepository instance."""
+    return UserRepository()
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_auth_bearer),
+    auth_service: AuthService = Depends(get_auth_service),
+    user_repo: UserRepository = Depends(get_user_repo),
+) -> User:
+    """Validate Bearer JWT token from Authorization header and return authenticated User."""
+    if not credentials or not credentials.credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid Authorization header",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    token = credentials.credentials
+    try:
+        payload = auth_service.decode_access_token(token)
+    except ExpiredTokenError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from e
+    except InvalidTokenError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e),
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from e
+
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token missing subject identifier",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user = user_repo.get_user_by_id(user_id)
+    if not user or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found or account is inactive",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return user
 
 

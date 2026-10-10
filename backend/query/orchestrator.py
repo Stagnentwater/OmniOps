@@ -37,6 +37,7 @@ class QueryOrchestrator:
         limit: int = 5,
         session_id: str | None = None,
         history_exclude_message_id: str | None = None,
+        persona_instructions: str | None = None,
     ) -> GenerationResult:
         """Execute the end-to-end read path."""
         def emit(stage: str, data: dict | None = None):
@@ -111,10 +112,23 @@ class QueryOrchestrator:
             emit("BUILDING_PROMPT")
             emit("GENERATING_RESPONSE")
             # 2. Generate reasoned answer strictly from context
-            result = self._generation_service.generate_answer(
-                context,
-                conversation_history=conversation_history,
-            )
+            if persona_instructions is not None:
+                try:
+                    result = self._generation_service.generate_answer(
+                        context,
+                        conversation_history=conversation_history,
+                        persona_instructions=persona_instructions,
+                    )
+                except TypeError:
+                    result = self._generation_service.generate_answer(
+                        context,
+                        conversation_history=conversation_history,
+                    )
+            else:
+                result = self._generation_service.generate_answer(
+                    context,
+                    conversation_history=conversation_history,
+                )
             emit("VALIDATING_CITATIONS")
             logger.info("Generation Complete.")
             

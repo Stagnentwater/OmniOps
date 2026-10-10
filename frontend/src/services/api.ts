@@ -5,7 +5,57 @@
 // Force IPv4 loopback to avoid Windows Node/Browser IPv6 resolution issues with uvicorn
 const API_BASE = "http://127.0.0.1:8000";
 
+const TOKEN_KEY = "omniops_auth_token";
+const FALLBACK_TOKEN_KEY = "omniops_jwt_token";
+
+export interface UserInfo {
+  user_id: string;
+  email: string;
+  is_active: boolean;
+  name?: string;
+  designation?: string;
+  created_at?: string;
+  profile?: UserProfileInfo | null;
+}
+
+export interface UserProfileInfo {
+  user_id: string;
+  name: string;
+  skill_set: string[];
+  designation: string;
+  refinery_experience_level: "beginner" | "intermediate" | "advanced" | "expert";
+  preferred_explanation_depth: "concise" | "moderate" | "detailed";
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AuthResponse {
+  access_token: string;
+  token_type: string;
+  user: UserInfo;
+}
+
 export class ApiClient {
+  static getToken(): string | null {
+    if (typeof window === "undefined") return null;
+    return localStorage.getItem(TOKEN_KEY) || localStorage.getItem(FALLBACK_TOKEN_KEY);
+  }
+
+  static setToken(token: string | null): void {
+    if (typeof window === "undefined") return;
+    if (token) {
+      localStorage.setItem(TOKEN_KEY, token);
+      localStorage.setItem(FALLBACK_TOKEN_KEY, token);
+    } else {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(FALLBACK_TOKEN_KEY);
+    }
+  }
+
+  static clearToken(): void {
+    this.setToken(null);
+  }
+
   private static async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${API_BASE}${endpoint}`;
     
@@ -15,15 +65,28 @@ export class ApiClient {
       headers.set("Content-Type", "application/json");
     }
 
+    // Attach Bearer token if present
+    const token = this.getToken();
+    if (token && !headers.has("Authorization")) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+
     try {
       const response = await fetch(url, { ...options, headers });
       
       if (!response.ok) {
+        if (response.status === 401) {
+          this.clearToken();
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("omniops:unauthorized"));
+          }
+        }
+
         let errorMsg = response.statusText;
         try {
           const errData = await response.json();
           errorMsg = errData.detail || errorMsg;
-        } catch (e) {
+        } catch {
           // ignore
         }
         throw new Error(`API Error ${response.status}: ${errorMsg}`);
@@ -40,6 +103,68 @@ export class ApiClient {
       throw error;
     }
   }
+
+  // --- Auth & Profile API ---
+
+  static async register(data: {
+    email: string;
+    password: string;
+    name?: string;
+    designation?: string;
+    skill_set?: string[];
+    refinery_experience_level?: string;
+    preferred_explanation_depth?: string;
+  }): Promise<AuthResponse> {
+    const res = await this.request<AuthResponse>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+    if (res.access_token) {
+      this.setToken(res.access_token);
+    }
+    return res;
+  }
+
+  static async login(credentials: { email: string; password: string }): Promise<AuthResponse> {
+    const res = await this.request<AuthResponse>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify(credentials),
+    });
+    if (res.access_token) {
+      this.setToken(res.access_token);
+    }
+    return res;
+  }
+
+  static async getCurrentUser(): Promise<UserInfo> {
+    return this.request<UserInfo>("/auth/me");
+  }
+
+  static async getProfile(): Promise<UserProfileInfo> {
+    return this.request<UserProfileInfo>("/profile");
+  }
+
+  static async updateProfile(data: {
+    name?: string;
+    designation?: string;
+    skill_set?: string[];
+    refinery_experience_level?: string;
+    preferred_explanation_depth?: string;
+  }): Promise<UserProfileInfo> {
+    return this.request<UserProfileInfo>("/profile", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  static logout(): void {
+    this.clearToken();
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("omniops:unauthorized"));
+    }
+  }
+
+  // --- Core Knowledge and Document API ---
 
   static async getHealth() {
     return this.request<any>("/health");
@@ -120,9 +245,15 @@ export class ApiClient {
     imageFilename?: string | null
   ) {
     const url = `${API_BASE}/query/stream`;
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const token = this.getToken();
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({ 
         query: text, 
         document_ids: documentIds, 
@@ -133,6 +264,12 @@ export class ApiClient {
     });
 
     if (!response.ok) {
+      if (response.status === 401) {
+        this.clearToken();
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("omniops:unauthorized"));
+        }
+      }
       throw new Error(`Stream Error ${response.status}`);
     }
 

@@ -10,8 +10,15 @@ import base64
 from fastapi.responses import StreamingResponse
 from utils.event_bus import bus
 
-from dependencies import get_query_orchestrator, get_agent_orchestrator
+from dependencies import (
+    get_query_orchestrator, 
+    get_agent_orchestrator,
+    get_current_user,
+    get_user_repo,
+)
 from database.chat_repository import ChatRepository
+from database.user_repository import UserRepository, User
+from generation.persona_builder import PersonaContextBuilder
 from query.orchestrator import QueryOrchestrator
 from agents.orchestrator import AgentOrchestrator
 from config.settings import get_settings
@@ -99,8 +106,10 @@ def _process_attached_image(image_base64: str, image_filename: Optional[str] = N
 @router.post("", response_model=QueryResponse)
 async def submit_query(
     request: QueryRequest,
+    current_user: User = Depends(get_current_user),
     agent_orchestrator: AgentOrchestrator = Depends(get_agent_orchestrator),
     legacy_orchestrator: QueryOrchestrator = Depends(get_query_orchestrator),
+    user_repo: UserRepository = Depends(get_user_repo),
 ) -> QueryResponse:
     """Execute end-to-end Retrieval and Generation (agent or legacy)."""
     settings = get_settings()
@@ -124,11 +133,24 @@ async def submit_query(
             "image_url": storage_url,
             "image_base64": request.image_base64,
         }
+        is_diagram = any(k in (request.query or "").lower() for k in ["p&id", "pid", "diagram", "schematic", "piping", "pfd", "flow sheet"]) or any(k in fn.lower() for k in ["p&id", "pid", "diagram", "schematic", "pfd"])
+        rec_tool = "analyze_pid" if is_diagram else "analyze_image"
         agent_query = (
             f"[Attached Image: '{fn}' located at '{stored_path}'. "
-            f"If visual inspection, equipment identification, gauge reading, or diagram analysis is needed, "
-            f"use analyze_image or analyze_pid with image_path='{stored_path}'].\n\n{request.query}"
+            f"You MUST invoke {rec_tool} (or analyze_image) with image_path='{stored_path}' before answering. "
+            f"Do not guess or output generic safety disclaimers without inspecting the image first. "
+            f"Once visual tool findings return: "
+            f"1. Directly explain what is shown: walk through equipment tags, valves, piping, instrumentation, and process flow in detail. "
+            f"2. Include relevant operational safety notes as secondary guidance, but never replace or omit the diagram explanation. "
+            f"3. If the image is a general, cartoon, or non-refinery image, explain what is depicted and state that it is not part of the refinery so questions based on it cannot be answered in an operational context].\n\n{request.query}"
         )
+
+    persona_instructions = None
+    if isinstance(current_user, User):
+        user_profile = user_repo.get_profile(current_user.user_id)
+        persona_instructions = PersonaContextBuilder.build(user_profile)
+    else:
+        persona_instructions = PersonaContextBuilder.build(None)
 
     if not use_agent:
         if stored_path and request.image_base64:
@@ -156,6 +178,7 @@ async def submit_query(
         result = legacy_orchestrator.answer_query(
             request.query,
             session_id=request.session_id,
+            persona_instructions=persona_instructions,
         )
         citations = [
             CitationItem(
@@ -188,6 +211,7 @@ async def submit_query(
         query=agent_query,
         conversation_id=session_id or "",
         exclude_message_id=user_message_id,
+        persona_instructions=persona_instructions,
     )
 
     citations = [
@@ -230,8 +254,10 @@ async def submit_query(
 @router.post("/stream")
 async def stream_query(
     request: QueryRequest,
+    current_user: User = Depends(get_current_user),
     agent_orchestrator: AgentOrchestrator = Depends(get_agent_orchestrator),
     legacy_orchestrator: QueryOrchestrator = Depends(get_query_orchestrator),
+    user_repo: UserRepository = Depends(get_user_repo),
 ):
     """Execute end-to-end Retrieval and Generation with SSE streaming."""
     settings = get_settings()
@@ -255,16 +281,23 @@ async def stream_query(
             "image_url": storage_url,
             "image_base64": request.image_base64,
         }
+        is_diagram = any(k in (request.query or "").lower() for k in ["p&id", "pid", "diagram", "schematic", "piping", "pfd", "flow sheet"]) or any(k in fn.lower() for k in ["p&id", "pid", "diagram", "schematic", "pfd"])
+        rec_tool = "analyze_pid" if is_diagram else "analyze_image"
         agent_query = (
             f"[Attached Image: '{fn}' located at '{stored_path}'. "
-            f"If visual inspection, equipment identification, gauge reading, or diagram analysis is needed, "
-            f"use analyze_image or analyze_pid with image_path='{stored_path}'].\n\n{request.query}"
+            f"You MUST invoke {rec_tool} (or analyze_image) with image_path='{stored_path}' before answering. "
+            f"Do not guess or output generic safety disclaimers without inspecting the image first. "
+            f"Once visual tool findings return: "
+            f"1. Directly explain what is shown: walk through equipment tags, valves, piping, instrumentation, and process flow in detail. "
+            f"2. Include relevant operational safety notes as secondary guidance, but never replace or omit the diagram explanation. "
+            f"3. If the image is a general, cartoon, or non-refinery image, explain what is depicted and state that it is not part of the refinery so questions based on it cannot be answered in an operational context].\n\n{request.query}"
         )
 
     chat_repo = ChatRepository()
     session_id = request.session_id
     if not session_id:
-        session_id = chat_repo.create_session()
+        user_id = current_user.user_id if isinstance(current_user, User) else None
+        session_id = chat_repo.create_session(user_id=user_id)
 
     user_message_id = chat_repo.add_message(
         session_id=session_id,
@@ -272,6 +305,13 @@ async def stream_query(
         content=request.query,
         metadata=image_metadata,
     )
+
+    persona_instructions = None
+    if isinstance(current_user, User):
+        user_profile = user_repo.get_profile(current_user.user_id)
+        persona_instructions = PersonaContextBuilder.build(user_profile)
+    else:
+        persona_instructions = PersonaContextBuilder.build(None)
 
     def run_query():
         try:
@@ -302,6 +342,7 @@ async def stream_query(
                     request.query,
                     session_id=session_id,
                     history_exclude_message_id=user_message_id,
+                    persona_instructions=persona_instructions,
                 )
             else:
                 def emit_to_bus(stage: str, data: dict):
@@ -315,6 +356,7 @@ async def stream_query(
                     conversation_id=session_id,
                     exclude_message_id=user_message_id,
                     on_event=emit_to_bus,
+                    persona_instructions=persona_instructions,
                 )
 
                 metadata = {

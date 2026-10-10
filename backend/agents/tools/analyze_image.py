@@ -136,6 +136,22 @@ class AnalyzeImageTool(Tool):
             # Normalize file URI if passed
             if clean_path.startswith("file://"):
                 clean_path = clean_path[7:]
+            clean_path = clean_path.replace(r"\&", "&")
+            if not os.path.isfile(clean_path):
+                # Try cross-platform path normalization
+                # 1. Windows path on Linux (e.g. D:\data\storage -> /data/storage)
+                import re
+                alt1 = re.sub(r"^[A-Za-z]:[\\/]", "/", clean_path).replace("\\", "/")
+                # 2. Linux path on Windows (e.g. /data/storage -> D:\data\storage)
+                alt2 = os.path.abspath(clean_path)
+                from config.settings import get_settings
+                local_root = os.path.abspath(get_settings().storage.local_root)
+                alt3 = os.path.join(local_root, os.path.basename(clean_path))
+                alt4 = clean_path.replace("/data/storage", local_root).replace("\\data\\storage", local_root)
+                for cand in (alt1, alt2, alt3, alt4):
+                    if os.path.isfile(cand):
+                        clean_path = cand
+                        break
             if not os.path.isfile(clean_path):
                 return ToolResult(
                     tool_name="analyze_image",
@@ -187,10 +203,10 @@ class AnalyzeImageTool(Tool):
                 )
             else:
                 default_prompt = (
-                    "Describe all equipment, components, labels, annotations, "
-                    "and connections visible in this industrial image. "
-                    "Include any text, serial numbers, model numbers, and "
-                    "manufacturer information you can read."
+                    "Describe this image thoroughly. "
+                    "If it shows refinery or industrial equipment, identify all components, labels, gauges, and conditions. "
+                    "If it is a general, cartoon, meme, animal, person, or non-refinery image, describe what is depicted "
+                    "in detail (characters, objects, actions, setting, colors, text) and note that it is non-industrial."
                 )
                 query_prompt = prompt if (isinstance(prompt, str) and prompt.strip()) else default_prompt
 

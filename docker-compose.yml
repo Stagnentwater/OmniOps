@@ -9,6 +9,10 @@ services:
       - "8000:8000"
     volumes:
       - storage_data:/data/storage
+      - ./backend:/app
+      - /app/.venv
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     deploy:
       resources:
         reservations:
@@ -51,7 +55,7 @@ services:
       OPENROUTER_MODEL: "llama3.2"
       STORAGE_BACKEND: local
       STORAGE_LOCAL_ROOT: /data/storage
-      EMBEDDING_MODEL_NAME: "all-MiniLM-L6-v2"
+      EMBEDDING_MODEL_NAME: "./models/all-MiniLM-L6-v2"
       OLLAMA_BASE_URL: "http://host.docker.internal:11434"
       VISION_MODEL: "gemma3:4b"
       REASONING_MODEL: "llama3.2"
@@ -71,6 +75,12 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_started
+      qdrant:
+        condition: service_started
     environment:
       FASTAPI_APP_NAME: OmniOps API
       FASTAPI_HOST: 0.0.0.0
@@ -97,7 +107,7 @@ services:
       OPENROUTER_MODEL: "llama3.2"
       STORAGE_BACKEND: local
       STORAGE_LOCAL_ROOT: /data/storage
-      EMBEDDING_MODEL_NAME: "all-MiniLM-L6-v2"
+      EMBEDDING_MODEL_NAME: "./models/all-MiniLM-L6-v2"
       OLLAMA_BASE_URL: "http://host.docker.internal:11434"
       VISION_MODEL: "gemma3:4b"
       REASONING_MODEL: "llama3.2"
@@ -109,6 +119,10 @@ services:
 
     volumes:
       - storage_data:/data/storage
+      - ./backend:/app
+      - /app/.venv
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     deploy:
       resources:
         reservations:

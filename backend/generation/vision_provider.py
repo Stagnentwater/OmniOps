@@ -48,10 +48,10 @@ class VisionProvider:
         self,
         image_bytes: bytes,
         prompt: str = (
-            "Describe all equipment, components, labels, annotations, "
-            "and connections visible in this industrial image. "
-            "Include any text, serial numbers, model numbers, and "
-            "manufacturer information you can read."
+            "Describe this image thoroughly. "
+            "If it shows industrial or refinery equipment, identify components, labels, gauges, and conditions. "
+            "If it is a general, cartoon, meme, animal, person, or non-refinery image, describe what is depicted "
+            "in detail (characters, objects, actions, setting, colors, text) and note that it is non-industrial."
         ),
     ) -> VisionResult:
         """Send an image to the vision model and get a text description.

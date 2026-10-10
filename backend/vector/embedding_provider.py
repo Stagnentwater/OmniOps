@@ -55,14 +55,59 @@ class SentenceTransformerEmbeddingProvider(EmbeddingProvider):
         """Create a provider using the model name configured in application settings."""
         return cls(model_name=settings.model_name)
 
+    def _resolve_model_path(self) -> str:
+        """Resolve model name or local directory path for offline execution.
+        
+        Searches local model directories before falling back to model name,
+        ensuring on-premise air-gapped deployments never perform external network calls.
+        """
+        import os
+        name = self._model_name
+        
+        # Candidate directories to inspect for a pre-downloaded local model
+        candidates = [
+            name,
+            os.path.abspath(name),
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models", name),
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models", "all-MiniLM-L6-v2"),
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models", "embedding_model"),
+            os.path.join(os.getcwd(), "models", name),
+            os.path.join(os.getcwd(), "models", "all-MiniLM-L6-v2"),
+            os.path.join(os.getcwd(), "models", "embedding_model"),
+            os.path.join(os.getcwd(), "backend", "models", name),
+            os.path.join(os.getcwd(), "backend", "models", "all-MiniLM-L6-v2"),
+        ]
+        
+        for candidate in candidates:
+            if os.path.isdir(candidate):
+                if os.path.exists(os.path.join(candidate, "modules.json")) or os.path.exists(os.path.join(candidate, "config.json")):
+                    self._logger.info(f"Resolved offline local model path: {candidate}")
+                    return candidate
+                    
+        return name
+
     def _load_model(self) -> None:
         if self._model is None:
+            import os
+            # Enforce offline flags for air-gapped on-premise environments
+            os.environ.setdefault("HF_HUB_OFFLINE", "1")
+            os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+
             # Import here to avoid slow startup for components that don't need it
             from sentence_transformers import SentenceTransformer
 
-            self._logger.info(f"Loading embedding model: {self._model_name}")
-            # Normalize embeddings to enable inner product (cosine similarity equivalent)
-            self._model = SentenceTransformer(self._model_name)
+            target_path = self._resolve_model_path()
+            self._logger.info(f"Loading embedding model: {target_path} (offline mode)")
+
+            try:
+                # First attempt strictly offline using local_files_only
+                self._model = SentenceTransformer(target_path, local_files_only=True)
+            except Exception as exc:
+                self._logger.warning(
+                    f"Offline local_files_only load raised {type(exc).__name__}: {exc}. "
+                    "Falling back to standard initialization with offline environment."
+                )
+                self._model = SentenceTransformer(target_path)
             
             # Determine dimensionality
             dummy_embed = self._model.encode(["test"])

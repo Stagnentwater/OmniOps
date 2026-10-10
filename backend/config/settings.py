@@ -137,6 +137,19 @@ class ModelRegistry(BaseSettings):
     ollama_base_url: str = Field(default="http://localhost:11434", validation_alias="OLLAMA_BASE_URL")
 
 
+class AuthSettings(BaseSettings):
+    """Settings for authentication and token validation."""
+    secret_key: str = Field(
+        default="vigilops-secret-key-change-in-production-32bytes-min",
+        validation_alias="AUTH_SECRET_KEY",
+    )
+    algorithm: str = Field(default="HS256", validation_alias="AUTH_ALGORITHM")
+    access_token_expire_minutes: int = Field(
+        default=1440,
+        validation_alias="AUTH_ACCESS_TOKEN_EXPIRE_MINUTES",
+    )
+
+
 class Settings(BaseSettings):
     """Root settings object used by API and worker."""
     
@@ -155,6 +168,7 @@ class Settings(BaseSettings):
     vision: VisionSettings = Field(default_factory=VisionSettings)
     models: ModelRegistry = Field(default_factory=ModelRegistry)
     agent: AgentSettings = Field(default_factory=AgentSettings)
+    auth: AuthSettings = Field(default_factory=AuthSettings)
 
 
 @lru_cache(maxsize=1)

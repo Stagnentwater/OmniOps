@@ -1,6 +1,9 @@
-"""RQ worker entrypoint for OmniOps ingestion jobs."""
-
+import os
 import logging
+
+# Enforce offline air-gapped operation for on-premise execution
+os.environ.setdefault("HF_HUB_OFFLINE", "1")
+os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 
 from redis import Redis
 from rq import Worker

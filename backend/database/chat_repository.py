@@ -20,6 +20,7 @@ class ChatSession:
     title: str
     created_at: datetime
     updated_at: datetime
+    user_id: str | None = None
 
 
 @dataclass
@@ -47,9 +48,12 @@ class ChatRepository:
                 CREATE TABLE IF NOT EXISTS chat_sessions (
                     session_id TEXT PRIMARY KEY,
                     title TEXT NOT NULL,
+                    user_id TEXT,
                     created_at TIMESTAMPTZ NOT NULL,
                     updated_at TIMESTAMPTZ NOT NULL
                 );
+                ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS user_id TEXT;
+                CREATE INDEX IF NOT EXISTS idx_chat_sessions_user_id ON chat_sessions (user_id);
                 """
             )
             cursor.execute(
@@ -69,7 +73,7 @@ class ChatRepository:
             )
         connection.commit()
 
-    def create_session(self, title: str = "New Chat") -> str:
+    def create_session(self, title: str = "New Chat", user_id: str | None = None) -> str:
         session_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc)
         with self._connect() as connection:
@@ -77,31 +81,66 @@ class ChatRepository:
             with connection.cursor() as cursor:
                 cursor.execute(
                     """
-                    INSERT INTO chat_sessions (session_id, title, created_at, updated_at)
-                    VALUES (%s, %s, %s, %s)
+                    INSERT INTO chat_sessions (session_id, title, user_id, created_at, updated_at)
+                    VALUES (%s, %s, %s, %s, %s)
                     """,
-                    (session_id, title, now, now),
+                    (session_id, title, user_id, now, now),
                 )
             connection.commit()
         return session_id
 
-    def list_sessions(self) -> list[ChatSession]:
+    def get_session(self, session_id: str) -> ChatSession | None:
         with self._connect() as connection:
             self._ensure_tables(connection)
             with connection.cursor() as cursor:
                 cursor.execute(
                     """
-                    SELECT session_id, title, created_at, updated_at
+                    SELECT session_id, title, user_id, created_at, updated_at
                     FROM chat_sessions
-                    ORDER BY updated_at DESC
-                    """
+                    WHERE session_id = %s
+                    """,
+                    (session_id,)
                 )
+                row = cursor.fetchone()
+                if not row:
+                    return None
+                return ChatSession(
+                    session_id=row["session_id"],
+                    title=row["title"],
+                    user_id=row.get("user_id"),
+                    created_at=row["created_at"],
+                    updated_at=row["updated_at"],
+                )
+
+    def list_sessions(self, user_id: str | None = None) -> list[ChatSession]:
+        with self._connect() as connection:
+            self._ensure_tables(connection)
+            with connection.cursor() as cursor:
+                if user_id is not None:
+                    cursor.execute(
+                        """
+                        SELECT session_id, title, user_id, created_at, updated_at
+                        FROM chat_sessions
+                        WHERE user_id = %s
+                        ORDER BY updated_at DESC
+                        """,
+                        (user_id,)
+                    )
+                else:
+                    cursor.execute(
+                        """
+                        SELECT session_id, title, user_id, created_at, updated_at
+                        FROM chat_sessions
+                        ORDER BY updated_at DESC
+                        """
+                    )
                 rows = cursor.fetchall()
                 
         return [
             ChatSession(
                 session_id=row["session_id"],
                 title=row["title"],
+                user_id=row.get("user_id"),
                 created_at=row["created_at"],
                 updated_at=row["updated_at"],
             )
@@ -261,12 +300,20 @@ class ChatRepository:
             for row in rows
         ]
 
-    def delete_session(self, session_id: str) -> None:
+    def delete_session(self, session_id: str, user_id: str | None = None) -> bool:
         with self._connect() as connection:
             self._ensure_tables(connection)
             with connection.cursor() as cursor:
-                cursor.execute(
-                    "DELETE FROM chat_sessions WHERE session_id = %s",
-                    (session_id,)
-                )
+                if user_id is not None:
+                    cursor.execute(
+                        "DELETE FROM chat_sessions WHERE session_id = %s AND user_id = %s",
+                        (session_id, user_id)
+                    )
+                else:
+                    cursor.execute(
+                        "DELETE FROM chat_sessions WHERE session_id = %s",
+                        (session_id,)
+                    )
+                deleted = cursor.rowcount > 0
             connection.commit()
+        return deleted

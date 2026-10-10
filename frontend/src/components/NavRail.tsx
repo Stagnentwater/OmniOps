@@ -1,9 +1,9 @@
 "use client";
 
-import { MessageSquare, Network, UploadCloud, Activity, Terminal } from "lucide-react";
+import { MessageSquare, Network, UploadCloud, Activity, Terminal, UserCircle } from "lucide-react";
 import { motion } from "framer-motion";
 
-export type ViewId = "chat" | "knowledge" | "ingestion" | "overview";
+export type ViewId = "chat" | "knowledge" | "ingestion" | "overview" | "profile";
 
 interface NavItem {
   id: ViewId;
@@ -16,6 +16,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "knowledge", label: "Knowledge", icon: Network },
   { id: "ingestion", label: "Ingestion", icon: UploadCloud },
   { id: "overview", label: "Overview", icon: Activity },
+  { id: "profile", label: "Profile", icon: UserCircle },
 ];
 
 interface NavRailProps {

@@ -1,8 +1,11 @@
-"""OmniOps backend FastAPI application entrypoint."""
-
+import os
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-import logging
+
+# Enforce offline air-gapped operation for on-premise execution
+os.environ.setdefault("HF_HUB_OFFLINE", "1")
+os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 
 from config.settings import get_settings
 from api.routes.health import router as health_router
@@ -11,6 +14,8 @@ from api.routes.uploads import router as uploads_router
 from api.routes.query import router as query_router
 from api.routes.knowledge import router as knowledge_router
 from api.routes.chat import router as chat_router
+from api.routes.auth import router as auth_router
+from api.routes.profile import router as profile_router
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(message)s")
 logger = logging.getLogger(__name__)
@@ -72,3 +77,5 @@ app.include_router(uploads_router)
 app.include_router(query_router)
 app.include_router(knowledge_router)
 app.include_router(chat_router)
+app.include_router(auth_router)
+app.include_router(profile_router)
