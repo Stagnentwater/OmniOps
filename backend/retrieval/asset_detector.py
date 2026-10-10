@@ -57,6 +57,8 @@ class AssetDetectionResult:
     ambiguous: bool
 
 
+from utils.tag_patterns import TAG_REGEX, validate_and_parse_tag
+
 # ---------------------------------------------------------------------------
 # Regex patterns for extracting asset mentions from queries.
 # These mirror the patterns in ingestion/extractor.py (ENT-001) to maintain
@@ -65,15 +67,7 @@ class AssetDetectionResult:
 
 # Full asset mentions like "Pump P301", "Valve V-200", "Compressor C-100"
 _ASSET_FULL_PATTERN = re.compile(
-    r"\b(Pump|Boiler|Valve|Compressor|Generator|Turbine|Motor|Fan|Chiller|Heater)"
-    r"\s+([A-Za-z0-9][\w\-]*)\b",
-    re.IGNORECASE,
-)
-
-# Short tag patterns like "P-301", "V-200", "C-100"
-_ASSET_TAG_PATTERN = re.compile(
-    r"\b([PBVCGTMFH])-(\d{2,4})\b",
-    re.IGNORECASE,
+    r"\b(?i:Pump|Boiler|Valve|Compressor|Generator|Turbine|Motor|Fan|Chiller|Heater)\s+([A-Za-z0-9\-]+)\b"
 )
 
 # Component mentions like "bearing", "impeller", "seal"
@@ -190,26 +184,35 @@ class AssetDetector:
 
         # 1. Full asset mentions: "Pump P301"
         for match in _ASSET_FULL_PATTERN.finditer(query):
-            raw = match.group(0).strip()
-            normalized = raw.lower()
-            if normalized not in seen_texts:
-                seen_texts.add(normalized)
-                mentions.append({"raw": raw, "type": "asset"})
+            potential_tag = match.group(1)
+            parsed = validate_and_parse_tag(potential_tag)
+            if parsed:
+                tag, _, _ = parsed
+                # Use the extracted standard tag as raw
+                raw = tag
+                normalized = raw.lower()
+                if normalized not in seen_texts:
+                    seen_texts.add(normalized)
+                    mentions.append({"raw": raw, "type": "asset"})
 
         # 2. Short tags: "P-301" (only if not already part of a full mention)
-        for match in _ASSET_TAG_PATTERN.finditer(query):
-            raw = match.group(0).strip()
-            normalized = raw.lower()
-            if normalized not in seen_texts:
-                # Check the tag isn't part of an already-captured full mention
-                already_captured = False
-                for seen in seen_texts:
-                    if normalized in seen:
-                        already_captured = True
-                        break
-                if not already_captured:
-                    seen_texts.add(normalized)
-                    mentions.append({"raw": raw, "type": "tag"})
+        for match in TAG_REGEX.finditer(query):
+            orig = match.group(0).strip()
+            parsed = validate_and_parse_tag(orig)
+            if parsed:
+                tag, _, _ = parsed
+                raw = tag
+                normalized = raw.lower()
+                if normalized not in seen_texts:
+                    # Check the tag isn't part of an already-captured full mention
+                    already_captured = False
+                    for seen in seen_texts:
+                        if normalized in seen:
+                            already_captured = True
+                            break
+                    if not already_captured:
+                        seen_texts.add(normalized)
+                        mentions.append({"raw": raw, "type": "tag"})
 
         # 3. Components: "bearing", "impeller"
         for match in _COMPONENT_PATTERN.finditer(query):

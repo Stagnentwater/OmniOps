@@ -10,21 +10,18 @@ from ingestion.relationship_models import RelationshipOccurrence, RelationshipOc
 from ingestion.resolution_models import ResolvedEntity, ResolvedRelationship, ResolvedKnowledgePackage
 
 
+from utils.tag_patterns import validate_and_parse_tag
+
 def _normalize_entity_name(name: str, entity_type: str) -> str:
     """Normalize names of entity occurrences to establish standard keys for alias matching."""
+    if entity_type == "asset":
+        parsed = validate_and_parse_tag(name)
+        if parsed:
+            tag, _, _ = parsed
+            return tag.lower().replace("-", "")
+            
     cleaned = re.sub(r"\s+", " ", name).strip().lower()
     cleaned = cleaned.replace("-", "")
-    
-    if entity_type == "asset":
-        if cleaned.startswith("p") and cleaned[1:].isdigit():
-            cleaned = "pump " + cleaned
-        elif cleaned.startswith("b") and cleaned[1:].isdigit():
-            cleaned = "boiler " + cleaned
-        elif cleaned.startswith("v") and cleaned[1:].isdigit():
-            cleaned = "valve " + cleaned
-        elif cleaned.startswith("c") and cleaned[1:].isdigit():
-            cleaned = "compressor " + cleaned
-            
     return cleaned
 
 
@@ -56,18 +53,15 @@ def resolve_knowledge(
     occurrence_to_canonical: dict[str, str] = {}
 
     for (ent_type, norm_key), occurrences in grouped_occurrences.items():
-        # Select best canonical name (longest non-empty string, prioritizing type keywords)
+        # Select best canonical name (shortest string, to prefer bare tags like P-301 over Pump P-301)
         best_name = occurrences[0].canonical_name
         best_len = len(best_name)
         
         for occ in occurrences:
             name = occ.canonical_name
             name_len = len(name)
-            # Favor names containing type qualifiers
-            has_type_keyword = ent_type.lower() in name.lower()
-            best_has_keyword = ent_type.lower() in best_name.lower()
             
-            if (has_type_keyword and not best_has_keyword) or (has_type_keyword == best_has_keyword and name_len > best_len):
+            if name_len < best_len:
                 best_name = name
                 best_len = name_len
 

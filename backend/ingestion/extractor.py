@@ -24,14 +24,19 @@ def extract_entities(chunk_collection: ChunkCollection) -> EntityOccurrenceColle
     document_id = chunk_collection.document_id
     occurrences_list: list[EntityOccurrence] = []
 
+    from utils.tag_patterns import (
+        TAG_REGEX,
+        validate_and_parse_tag,
+        is_valid_location_or_person
+    )
+
     # Compile Regex Patterns for all 9 categories
     
     # ENT-001: Equipment (Assets)
-    asset_pattern = re.compile(
-        r'\b(Pump|Boiler|Valve|Compressor|Generator|Turbine|Motor|Fan|Chiller|Heater)\s*([A-Za-z0-9\-]+)\b',
+    asset_keyword_pattern = re.compile(
+        r'\b(Pump|Boiler|Valve|Compressor|Generator|Turbine|Motor|Fan|Chiller|Heater)\s+([A-Za-z0-9\-]+)\b',
         re.IGNORECASE
     )
-    asset_tag_pattern = re.compile(r'\b(P|B|V|C|G|T|M|F|CH|H)-([0-9]{3,4})\b', re.IGNORECASE)
 
     # ENT-002: Components
     component_pattern = re.compile(
@@ -41,7 +46,7 @@ def extract_entities(chunk_collection: ChunkCollection) -> EntityOccurrenceColle
 
     # ENT-003: People (Roles & Names)
     people_pattern = re.compile(
-        r'\b(Engineer|Inspector|Technician|Operator|Supervisor)\s+([A-Z][a-z]+)\b',
+        r'\b(Engineer|Inspector|Technician|Operator|Supervisor)\s+([A-Za-z]+)\b',
         re.IGNORECASE
     )
     people_role_pattern = re.compile(
@@ -128,29 +133,25 @@ def extract_entities(chunk_collection: ChunkCollection) -> EntityOccurrenceColle
             )
 
         # 1. ENT-001 Assets
-        # Check standard prefix matches (e.g. Pump P301)
-        for match in asset_pattern.finditer(text):
+        # Check standard prefix matches (e.g. Pump P-301)
+        for match in asset_keyword_pattern.finditer(text):
             orig = match.group(0)
-            asset_type = match.group(1).capitalize()
-            tag = match.group(2).upper()
-            canonical = f"{asset_type} {tag}"
-            add_occurrence("asset", orig, canonical, 0.95, {"asset_type": asset_type, "tag": tag})
+            keyword_type = match.group(1).capitalize()
+            potential_tag = match.group(2)
+            
+            parsed = validate_and_parse_tag(potential_tag)
+            if parsed:
+                tag, _, _ = parsed
+                # High confidence because it matched both the keyword and valid tag pattern
+                add_occurrence("asset", orig, tag, 0.95, {"asset_type": keyword_type, "tag": tag})
 
         # Check raw tag patterns (e.g. P-301)
-        for match in asset_tag_pattern.finditer(text):
+        for match in TAG_REGEX.finditer(text):
             orig = match.group(0)
-            prefix = match.group(1).upper()
-            num = match.group(2)
-            
-            # Resolve prefix to type
-            prefix_to_type = {
-                "P": "Pump", "B": "Boiler", "V": "Valve", "C": "Compressor",
-                "G": "Generator", "T": "Turbine", "M": "Motor", "F": "Fan",
-                "CH": "Chiller", "H": "Heater"
-            }
-            asset_type = prefix_to_type.get(prefix, "Equipment")
-            canonical = f"{asset_type} {prefix}-{num}"
-            add_occurrence("asset", orig, canonical, 0.85, {"asset_type": asset_type, "tag": f"{prefix}-{num}"})
+            parsed = validate_and_parse_tag(orig)
+            if parsed:
+                tag, eq_type, confidence = parsed
+                add_occurrence("asset", orig, tag, confidence, {"asset_type": eq_type, "tag": tag})
 
         # 2. ENT-002 Components
         for match in component_pattern.finditer(text):
@@ -166,8 +167,9 @@ def extract_entities(chunk_collection: ChunkCollection) -> EntityOccurrenceColle
             orig = match.group(0)
             role = match.group(1).capitalize()
             name = match.group(2)
-            canonical = f"{role} {name}"
-            add_occurrence("person", orig, canonical, 0.95, {"role": role, "name": name})
+            if is_valid_location_or_person(name):
+                canonical = f"{role} {name}"
+                add_occurrence("person", orig, canonical, 0.95, {"role": role, "name": name})
 
         for match in people_role_pattern.finditer(text):
             orig = match.group(0)
@@ -179,8 +181,9 @@ def extract_entities(chunk_collection: ChunkCollection) -> EntityOccurrenceColle
             orig = match.group(0)
             loc_type = match.group(1).capitalize()
             loc_val = match.group(2)
-            canonical = f"{loc_type} {loc_val}"
-            add_occurrence("location", orig, canonical, 0.95, {"location_type": loc_type, "value": loc_val})
+            if is_valid_location_or_person(loc_val):
+                canonical = f"{loc_type} {loc_val}"
+                add_occurrence("location", orig, canonical, 0.95, {"location_type": loc_type, "value": loc_val})
 
         # 5. ENT-005 Dates
         for match in date_iso.finditer(text):
