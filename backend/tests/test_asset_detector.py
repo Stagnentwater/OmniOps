@@ -78,7 +78,7 @@ class TestAssetDetectorExtraction(unittest.TestCase):
     def test_full_asset_mention(self) -> None:
         result = self.detector.detect("Why is Pump P301 vibrating?")
         self.assertEqual(len(result.candidates), 1)
-        self.assertIn("Pump P301", result.candidates[0].raw_mention)
+        self.assertEqual("P-301", result.candidates[0].raw_mention)
         self.assertFalse(result.candidates[0].resolved)
 
     def test_multiple_assets(self) -> None:
@@ -88,12 +88,12 @@ class TestAssetDetectorExtraction(unittest.TestCase):
         self.assertGreaterEqual(len(result.candidates), 2)
         raw_mentions = {c.raw_mention for c in result.candidates}
         self.assertTrue(
-            any("Valve" in m for m in raw_mentions),
-            f"Expected Valve mention in {raw_mentions}",
+            any("V-200" in m for m in raw_mentions),
+            f"Expected V-200 mention in {raw_mentions}",
         )
         self.assertTrue(
-            any("Compressor" in m for m in raw_mentions),
-            f"Expected Compressor mention in {raw_mentions}",
+            any("C-100" in m for m in raw_mentions),
+            f"Expected C-100 mention in {raw_mentions}",
         )
 
     def test_tag_pattern(self) -> None:
@@ -126,7 +126,7 @@ class TestAssetDetectorExtraction(unittest.TestCase):
     def test_case_insensitive_extraction(self) -> None:
         result = self.detector.detect("PUMP p301 is down")
         self.assertEqual(len(result.candidates), 1)
-        self.assertIn("PUMP", result.candidates[0].raw_mention)
+        self.assertEqual("P-301", result.candidates[0].raw_mention)
 
     def test_no_duplicate_extraction(self) -> None:
         """Same asset mentioned twice should only produce one mention."""
@@ -135,11 +135,11 @@ class TestAssetDetectorExtraction(unittest.TestCase):
         )
         # Regex finds two matches but dedup by normalized text should keep one
         raw_mentions = [c.raw_mention.lower() for c in result.candidates]
-        # Should have at most one "pump p301" entry
+        # Should have at most one "p-301" entry
         self.assertEqual(
-            raw_mentions.count("pump p301"),
+            raw_mentions.count("p-301"),
             1,
-            f"Expected exactly 1 'pump p301' but got {raw_mentions}",
+            f"Expected exactly 1 'p-301' but got {raw_mentions}",
         )
 
 
@@ -155,13 +155,13 @@ class TestAssetDetectorResolution(unittest.TestCase):
             {
                 "entity_id": "asset-001",
                 "entity_type": "asset",
-                "canonical_name": "Pump P301",
+                "canonical_name": "P-301",
                 "confidence": 0.95,
             },
             {
                 "entity_id": "asset-002",
                 "entity_type": "asset",
-                "canonical_name": "Valve V-200",
+                "canonical_name": "V-200",
                 "confidence": 0.90,
             },
             {
@@ -181,7 +181,7 @@ class TestAssetDetectorResolution(unittest.TestCase):
         resolved = [c for c in result.candidates if c.resolved]
         self.assertTrue(len(resolved) >= 1)
         self.assertEqual(resolved[0].entity_id, "asset-001")
-        self.assertEqual(resolved[0].canonical_name, "Pump P301")
+        self.assertEqual(resolved[0].canonical_name, "P-301")
 
     def test_resolved_confidence(self) -> None:
         result = self.detector.detect("Valve V-200 is leaking")

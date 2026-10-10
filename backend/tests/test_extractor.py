@@ -14,7 +14,7 @@ class TestEntityExtractor(unittest.TestCase):
                 chunk_id="chk-1",
                 document_id="doc-123",
                 chunk_index=0,
-                text="The Pump P-301 is active. Also check boiler B2.",
+                text="The Pump P-301 is active. Also check boiler B-202.",
                 page_index=0,
                 section="System",
                 metadata={},
@@ -30,8 +30,8 @@ class TestEntityExtractor(unittest.TestCase):
         self.assertEqual(len(assets), 2)
         
         canonical_names = {a.canonical_name for a in assets}
-        self.assertIn("Pump P-301", canonical_names)
-        self.assertIn("Boiler B2", canonical_names)
+        self.assertIn("P-301", canonical_names)
+        self.assertIn("B-202", canonical_names)
 
     def test_extract_components_ent_002(self):
         chunks = (

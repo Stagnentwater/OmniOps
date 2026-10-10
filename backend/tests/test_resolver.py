@@ -13,9 +13,12 @@ class TestKnowledgeResolver(unittest.TestCase):
         self.doc_id = "doc-123"
 
     def test_normalize_entity_name_heuristics(self):
-        self.assertEqual(_normalize_entity_name("Pump P-301", "asset"), "pump p301")
-        self.assertEqual(_normalize_entity_name("p-301", "asset"), "pump p301")
-        self.assertEqual(_normalize_entity_name("P301", "asset"), "pump p301")
+        self.assertEqual(_normalize_entity_name("Pump P-301", "asset"), "p301")
+        self.assertEqual(_normalize_entity_name("p-301", "asset"), "p301")
+        self.assertEqual(_normalize_entity_name("P301", "asset"), "p301")
+        
+        # Non-assets shouldn't use the tag extraction
+        self.assertEqual(_normalize_entity_name("Zone 5", "location"), "zone 5")
         self.assertEqual(_normalize_entity_name("boiler B2", "asset"), "boiler b2")
 
     def test_noisy_or_calculation(self):
@@ -49,8 +52,8 @@ class TestKnowledgeResolver(unittest.TestCase):
         occ_c = EntityOccurrence(
             entity_id="occ-3",
             entity_type="asset",
-            canonical_name="pump p301",
-            original_text="pump p301",
+            canonical_name="Pump P301",
+            original_text="Pump P301",
             confidence=0.90,
             chunk_id="chk-3",
             document_id=self.doc_id,
@@ -74,8 +77,8 @@ class TestKnowledgeResolver(unittest.TestCase):
         self.assertEqual(len(results.resolved_entities), 1)
 
         resolved_ent = results.resolved_entities[0]
-        # Canonical name should be chosen as the best one: "Pump P-301" (longest/type-qualified)
-        self.assertEqual(resolved_ent.canonical_name, "Pump P-301")
+        # Canonical name should be chosen as the best one: "P-301" (shortest/tag)
+        self.assertEqual(resolved_ent.canonical_name, "P-301")
         # occurrences tuple should track all 3 occurrence IDs
         self.assertEqual(set(resolved_ent.occurrences), {"occ-1", "occ-2", "occ-3"})
         # Noisy-OR confidence check: 1 - 0.2 * 0.05 * 0.1 = 1 - 0.001 = 0.999
