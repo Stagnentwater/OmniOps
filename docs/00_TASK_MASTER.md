@@ -21,14 +21,16 @@ Status: Living Development Plan
 
 # Current Status
 
-Current Phase: Phase 17 — Version 3: Authentication, User Profiles, and Persona-Aware Intelligence (COMPLETE)
+Current Phase: Phase 18 — Version 4: Multimodal Context, Structured Deliverables, Self-RAG & Industrial Permits (COMPLETED & ACCEPTANCE VERIFIED)
 
-Current Sprint: Sprint 17.5 — Security Audit & Full Regression Suite Verification (COMPLETE)
+Current Sprint: Version 4 Acceptance Testing, Gap Closure & Release Verification (Complete)
 
-Current Task: ALL PHASE 17 TASKS COMPLETE (611 tests passing)
+Current Task: None (Version 4 Complete & Ready for Demo)
 
 Roadmap Source:
-- `Docs/version 3.md` is the architecture blueprint and implementation specification for Version 3.
+- `docs/V4_ACCEPTANCE_TEST_REPORT.md` is the Acceptance Testing, Verification & Gap Closure Report.
+- `Docs/version 4.md` is the architecture blueprint and implementation specification for Version 4.
+- `Docs/version 3.md` was the architecture blueprint and implementation specification for Version 3 (complete).
 - `docs/09_AGENTIC_TRANSFORMATION.md` was the architecture specification for Phase 16 (complete).
 - `docs/Version1.md` was the roadmap for Version 1.5 (all V15 P1 tasks complete).
 - `docs/06_VERSION_2_DESC.md` is explicitly deferred.
@@ -119,9 +121,26 @@ Completed Tasks:
 - [x] V3-CHAT-ISOL-001 (Chat Session User Affiliation & Ownership Isolation)
 - [x] V3-DEMO-E2E-001 (Two-Persona Demonstration & Evaluation Benchmark)
 - [x] V3-SEC-REGRESS-001 (Security Audit & Full Regression Suite Verification — 611 tests passed)
+- [x] V4-AUDIT-001 (Baseline Testing, Repository Audit & Baseline Verification — 611 tests passed, frontend build verified)
+- [x] V4-PLAN-001 (Architecture Blueprint & Task Master Integration — Docs/version 4.md created and verified)
+- [x] V4-INTENT-001 (LLM-Driven Intent Interpretation & Structured Planning Engine — 622 tests passed)
+- [x] V4-IMG-CTX-001 (Conversation-Scoped Image Context Persistence & Multi-Turn Resolution — 627 tests passed)
+- [x] V4-DOC-CORE-001 (Structured Document Engine & Outline-First Multi-Step Generation — 635 tests passed)
+- [x] V4-DOC-WORD-001 (Word .docx Generation & Formatting Engine — verified with python-docx)
+- [x] V4-DOC-PDF-001 (PDF .pdf Direct PyMuPDF Generation & Validation — verified with fitz)
+- [x] V4-DOC-PPT-001 (PowerPoint .pptx Slide Deck Generation & Layout Engine — verified with python-pptx)
+- [x] V4-VERIF-RAG-001 (Self-RAG Evidence Sufficiency & Bounded Retrieval Loop — 643 tests passed)
+- [x] V4-VERIF-COV-001 (Chain of Verification (CoV) & Structured Evidence Ledger — 650 tests passed)
+- [x] V4-PERMIT-001 (Industrial Permit Generation Engine, Templates & Field Extraction — 656 tests passed)
+- [x] V4-PERMIT-SAFETY-001 (Permit Deterministic Safety Rules, Hazard & LOTO Verification — 660 tests passed)
+- [x] V4-HUMAN-REV-001 (Permit Human Review, Sign-off State Machine & Audit Traceability — 666 tests passed)
+- [x] V4-FE-DELIV-001 (Frontend Deliverable UI: Activity Stream, Artifact Downloader & Permit Review Cards)
+- [x] V4-FE-MY-DELIV-001 (Dedicated My Deliverables Tab, Account Persistence & Chat-Driven LLM Document Generation — 671 tests passed, frontend build verified)
+- [x] V4-REGRESS-001 (Comprehensive Version 4 Regression, Security & Safety Verification — 671 tests passed)
+- [x] V4-ACCEPT-001 (End-to-End Acceptance Testing, 10 Industrial Scenarios & Release Verification — 687 tests passed, docs/V4_ACCEPTANCE_TEST_REPORT.md created)
 
-Pending Tasks (Version 3):
-- None (All Phase 17 Version 3 tasks completed and verified)
+Pending Tasks (Version 4):
+- None (Version 4 Complete)
 
 Blocked Tasks:
 - None
@@ -1947,7 +1966,728 @@ COMPLETED
 test(v3): execute final security audit and complete regression verification
 
 **Next Task:**
-None (Version 3 Complete)
+V4-AUDIT-001 (Version 4 Phase 18 Begins)
+
+---
+
+# Phase 18 — Version 4: Multimodal Context, Structured Deliverables, Self-RAG & Industrial Permits
+
+## V4-AUDIT-001
+
+**Title:** Baseline Testing, Repository Audit & Baseline Verification
+
+**Objective:**
+Execute the full baseline test suites (backend unittest, frontend build/lint), audit the existing agentic system, trace image lifecycle and vector ingestion boundaries, and verify deliverable capabilities across the repository.
+
+**Prerequisites:**
+- V3-SEC-REGRESS-001
+
+**Input:**
+- Backend test suite (`backend/tests/`)
+- Frontend application (`frontend/`)
+- Core orchestrators (`backend/agents/orchestrator.py`, `backend/query/orchestrator.py`)
+
+**Expected Output:**
+- Accurate baseline test count recorded (611 tests passing).
+- Frontend production build verified (Next.js 16.2.10 Turbopack exit code 0).
+- Code-grounded audit of intent detection, tool selection, planning, retrieval, verification, and image lifecycle documented.
+
+**Files to Create / Modify:**
+- None (Inspection and verification task)
+
+**Implementation Notes:**
+- Extend the existing VigilOps architecture only within the explicitly authorized V4 scope. Do not redesign or modify unrelated architectural components. Any additional architectural change requires explicit prior approval from the project owner.
+
+**Acceptance Criteria:**
+- Backend test suite executes completely with zero regressions (611/611 passing).
+- Frontend builds cleanly via `npm run build`.
+- Actual image ingestion behavior verified (ordinary chat uploads do NOT enter global Qdrant/Neo4j).
+
+**Evaluation:**
+- PASS: 611 backend tests passed; Next.js frontend build succeeded.
+
+**Status:**
+COMPLETED
+
+**Suggested Commit Message:**
+chore(audit): verify baseline test suite and execute technical audit for version 4
+
+**Next Task:**
+V4-PLAN-001
+
+---
+
+## V4-PLAN-001
+
+**Title:** Architecture Blueprint & Task Master Integration
+
+**Objective:**
+Produce the comprehensive Version 4 architectural specification at `Docs/version 4.md` covering all 22 required sections and update `docs/00_TASK_MASTER.md` with actionable, dependency-aware Phase 18 tasks.
+
+**Prerequisites:**
+- V4-AUDIT-001
+
+**Input:**
+- Repository audit findings
+- Architecture freeze policy
+
+**Expected Output:**
+- `Docs/version 4.md` created with verified diagrams, audit tables, schemas, workflows, and acceptance criteria.
+- `docs/00_TASK_MASTER.md` updated with Phase 18 task breakdown.
+
+**Files to Create / Modify:**
+- `docs/version 4.md` (Created)
+- `docs/00_TASK_MASTER.md` (Modified)
+
+**Implementation Notes:**
+- Extend the existing VigilOps architecture only within the explicitly authorized V4 scope. Do not redesign or modify unrelated architectural components. Any additional architectural change requires explicit prior approval from the project owner.
+
+**Acceptance Criteria:**
+- `Docs/version 4.md` exists and covers all 22 required specification sections.
+- Both documents reflect the frozen architecture and authorized V4 scope.
+- First pending implementation task identified (`V4-INTENT-001`).
+
+**Evaluation:**
+- PASS: Documentation verified and consistent with repository reality.
+
+**Status:**
+COMPLETED
+
+**Suggested Commit Message:**
+docs(v4): create version 4 architectural blueprint and update task master
+
+**Next Task:**
+V4-INTENT-001
+
+---
+
+## V4-INTENT-001
+
+**Title:** LLM-Driven Intent Interpretation & Structured Planning Engine
+
+**Objective:**
+Implement an LLM-backed intent interpretation stage that parses varied user phrasing into a structured `ParsedIntent` and generates multi-step plans for complex deliverables while preserving deterministic fallbacks and tool security bounds.
+
+**Prerequisites:**
+- V4-PLAN-001
+
+**Input:**
+- User query, conversation history, and persona instructions.
+
+**Expected Output:**
+- `backend/agents/intent_interpreter.py` producing `ParsedIntent` with task type, deliverable format, missing inputs, target equipment, and tool recommendations.
+- Integration into `AgentOrchestrator` before the tool loop.
+- Comprehensive unit tests in `backend/tests/test_intent_interpreter.py`.
+
+**Files to Create / Modify:**
+- `backend/agents/intent_interpreter.py` (Create)
+- `backend/agents/orchestrator.py` (Modify)
+- `backend/tests/test_intent_interpreter.py` (Create)
+
+**Implementation Notes:**
+- Extend the existing VigilOps architecture only within the explicitly authorized V4 scope. Do not redesign or modify unrelated architectural components. Any additional architectural change requires explicit prior approval from the project owner.
+- Maintain deterministic fast regex fallback if LLM times out or is unreachable.
+- Never allow intent output to bypass tool permissions or execution limits.
+
+**Acceptance Criteria:**
+- Varied phrasing for work permits, calculations, image queries, and document generation accurately classified.
+- Missing mandatory inputs correctly flagged.
+- All existing 611 tests and new intent tests pass.
+
+**Evaluation:**
+- PASS: 11/11 unit tests in test_intent_interpreter.py passed; full 622 backend test suite passed with zero regressions.
+
+**Status:**
+COMPLETED
+
+**Suggested Commit Message:**
+feat(agent): implement LLM-driven intent interpretation and structured planning engine
+
+**Next Task:**
+V4-IMG-CTX-001
+
+---
+
+## V4-IMG-CTX-001
+
+**Title:** Conversation-Scoped Image Context Persistence & Multi-Turn Resolution
+
+**Objective:**
+Persist visual observations, equipment tags, and diagram extractions in chat session message metadata and resolve active image context during subsequent turns so follow-up questions work without image re-uploading or global vector database pollution.
+
+**Prerequisites:**
+- V4-INTENT-001
+
+**Input:**
+- Uploaded image in chat turn 1 (`QueryRequest.image_base64`), follow-up queries in turn 2+.
+
+**Expected Output:**
+- `backend/services/conversation_image_service.py` to extract, persist, and resolve session image context.
+- `AgentOrchestrator` and `backend/api/routes/query.py` updated to load active image context on follow-up questions.
+- Unit tests in `backend/tests/test_conversation_image_context.py`.
+
+**Files to Create / Modify:**
+- `backend/services/conversation_image_service.py` (Create)
+- `backend/api/routes/query.py` (Modify)
+- `backend/agents/orchestrator.py` (Modify)
+- `backend/tests/test_conversation_image_context.py` (Create)
+
+**Implementation Notes:**
+- Extend the existing VigilOps architecture only within the explicitly authorized V4 scope. Do not redesign or modify unrelated architectural components. Any additional architectural change requires explicit prior approval from the project owner.
+- Verify chat attachments NEVER enter Qdrant vector database or Neo4j global graph.
+- Scope image context strictly to `session_id` and authenticated `user_id`.
+
+**Acceptance Criteria:**
+- Follow-up questions about an attached P&ID or photo resolve visual tags without re-uploading.
+- No cross-user or cross-session leakage.
+- Unit tests pass.
+
+**Evaluation:**
+- PASS: 5/5 unit tests in test_conversation_image_context.py passed; full 627 backend test suite passed with zero regressions.
+
+**Status:**
+COMPLETED
+
+**Suggested Commit Message:**
+feat(vision): implement conversation-scoped image context persistence and multi-turn resolution
+
+**Next Task:**
+V4-DOC-CORE-001
+
+---
+
+## V4-DOC-CORE-001
+
+**Title:** Structured Document Engine & Outline-First Multi-Step Generation
+
+**Objective:**
+Implement the core document generation domain models, outline-first multi-step workflow, and artifact storage registration.
+
+**Prerequisites:**
+- V4-IMG-CTX-001
+
+**Input:**
+- User deliverable request, retrieved evidence, approved outline schema.
+
+**Expected Output:**
+- `backend/generation/document_models.py` (Outline, Section, Artifact, Verification models).
+- `backend/generation/document_generator.py` coordinating outline drafting, validation, section generation, and assembly.
+- Unit tests in `backend/tests/test_document_generator.py`.
+
+**Files to Create / Modify:**
+- `backend/generation/document_models.py` (Create)
+- `backend/generation/document_generator.py` (Create)
+- `backend/tests/test_document_generator.py` (Create)
+
+**Implementation Notes:**
+- Extend the existing VigilOps architecture only within the explicitly authorized V4 scope. Do not redesign or modify unrelated architectural components. Any additional architectural change requires explicit prior approval from the project owner.
+- Store generated artifacts using existing `LocalStorageService` and `MetadataRepository`.
+
+**Acceptance Criteria:**
+- Outline validation ensures required sections, tables, and references exist.
+- Bounded section generation with failure recovery.
+- Unit tests pass.
+
+**Evaluation:**
+- PASS: 5/5 unit tests in test_document_generator.py passed; full 635 backend test suite passed with zero regressions.
+
+**Status:**
+COMPLETED
+
+**Suggested Commit Message:**
+feat(docs): implement core outline-first document generation engine
+
+**Next Task:**
+V4-DOC-WORD-001
+
+---
+
+## V4-DOC-WORD-001
+
+**Title:** Word .docx Generation & Formatting Engine
+
+**Objective:**
+Implement high-fidelity Microsoft Word (`.docx`) deliverable generator using `python-docx` with professional industrial headings, tables, callout blocks, and evidence citation appendices.
+
+**Prerequisites:**
+- V4-DOC-CORE-001
+
+**Input:**
+- Structured document model and validated section contents.
+
+**Expected Output:**
+- `backend/generation/generators/word_generator.py` assembling validated sections into valid `.docx` binaries.
+- Unit tests in `backend/tests/test_word_generator.py`.
+
+**Files to Create / Modify:**
+- `backend/generation/generators/word_generator.py` (Create)
+- `backend/tests/test_word_generator.py` (Create)
+
+**Implementation Notes:**
+- Extend the existing VigilOps architecture only within the explicitly authorized V4 scope. Do not redesign or modify unrelated architectural components. Any additional architectural change requires explicit prior approval from the project owner.
+- Reuse installed `python-docx==0.8.11`.
+
+**Acceptance Criteria:**
+- Generated `.docx` file opens cleanly, contains required headings, formatted tables, and citations.
+- Structural validation confirms non-empty content and valid OpenXML package.
+
+**Evaluation:**
+- PASS: 1/1 unit test in test_word_generator.py passed; verified .docx document opening and layout.
+
+**Status:**
+COMPLETED
+
+**Suggested Commit Message:**
+feat(docs): implement Microsoft Word .docx deliverable generation engine
+
+**Next Task:**
+V4-DOC-PDF-001
+
+---
+
+## V4-DOC-PDF-001
+
+**Title:** PDF .pdf Direct PyMuPDF Generation & Validation
+
+**Objective:**
+Implement direct PDF generation using `PyMuPDF` (`fitz`) with industrial headers/footers, metadata tables, safety warning callout blocks, and structural validation.
+
+**Prerequisites:**
+- V4-DOC-WORD-001
+
+**Input:**
+- Structured document model and section contents.
+
+**Expected Output:**
+- `backend/generation/generators/pdf_generator.py` creating valid `.pdf` files.
+- Unit tests in `backend/tests/test_pdf_generator.py`.
+
+**Files to Create / Modify:**
+- `backend/generation/generators/pdf_generator.py` (Create)
+- `backend/tests/test_pdf_generator.py` (Create)
+
+**Implementation Notes:**
+- Extend the existing VigilOps architecture only within the explicitly authorized V4 scope. Do not redesign or modify unrelated architectural components. Any additional architectural change requires explicit prior approval from the project owner.
+- Reuse installed `PyMuPDF==1.28.0`.
+
+**Acceptance Criteria:**
+- Generated `.pdf` contains valid PDF magic bytes (`%PDF-`), page count >= 1, searchable text layer, and formatted tables.
+- Validation checks pass.
+
+**Evaluation:**
+- PASS: 1/1 unit test in test_pdf_generator.py passed; verified PDF magic bytes %PDF- and PyMuPDF text layer.
+
+**Status:**
+COMPLETED
+
+**Suggested Commit Message:**
+feat(docs): implement direct PyMuPDF PDF generation and validation engine
+
+**Next Task:**
+V4-DOC-PPT-001
+
+---
+
+## V4-DOC-PPT-001
+
+**Title:** PowerPoint .pptx Slide Deck Generation & Layout Engine
+
+**Objective:**
+Implement PowerPoint presentation generation (`.pptx`) creating title, agenda, metrics, safety, and conclusion slides with factual grounding and validation.
+
+**Prerequisites:**
+- V4-DOC-PDF-001
+
+**Input:**
+- Slide outline and structured slide content.
+
+**Expected Output:**
+- `backend/generation/generators/pptx_generator.py` assembling valid `.pptx` presentations.
+- Unit tests in `backend/tests/test_pptx_generator.py`.
+
+**Files to Create / Modify:**
+- `backend/generation/generators/pptx_generator.py` (Create)
+- `backend/tests/test_pptx_generator.py` (Create)
+
+**Implementation Notes:**
+- Extend the existing VigilOps architecture only within the explicitly authorized V4 scope. Do not redesign or modify unrelated architectural components. Any additional architectural change requires explicit prior approval from the project owner.
+
+**Acceptance Criteria:**
+- Generated `.pptx` file opens cleanly and contains expected slide titles and content.
+- Never invents unsupported equipment figures to populate slides.
+
+**Evaluation:**
+- PASS: 1/1 unit test in test_pptx_generator.py passed; verified PowerPoint slides, title layout, and table shapes.
+
+**Status:**
+COMPLETED
+
+**Suggested Commit Message:**
+feat(docs): implement PowerPoint .pptx slide deck generation engine
+
+**Next Task:**
+V4-VERIF-RAG-001
+
+---
+
+## V4-VERIF-RAG-001
+
+**Title:** Self-RAG Evidence Sufficiency & Bounded Retrieval Loop
+
+**Objective:**
+Implement Self-RAG evidence sufficiency checking that evaluates whether retrieved chunks contain required technical parameters before generation, triggering targeted secondary retrieval when needed (capped at 2 iterations).
+
+**Prerequisites:**
+- V4-DOC-PPT-001
+
+**Input:**
+- User query, initial retrieved context, required field list.
+
+**Expected Output:**
+- `backend/verification/self_rag.py` evaluating context sufficiency and executing bounded secondary retrieval.
+- Unit tests in `backend/tests/test_self_rag.py`.
+
+**Files to Create / Modify:**
+- `backend/verification/self_rag.py` (Create)
+- `backend/tests/test_self_rag.py` (Create)
+
+**Implementation Notes:**
+- Extend the existing VigilOps architecture only within the explicitly authorized V4 scope. Do not redesign or modify unrelated architectural components. Any additional architectural change requires explicit prior approval from the project owner.
+- Disclose missing parameters honestly if secondary retrieval fails.
+
+**Acceptance Criteria:**
+- Detects missing critical data and executes targeted secondary retrieval.
+- Hard bound prevents infinite loops.
+- Unit tests pass.
+
+**Evaluation:**
+- PASS: 5/5 unit tests in test_self_rag.py passed; verified evidence sufficiency checks and bounded retrieval loop.
+
+**Status:**
+COMPLETED
+
+**Suggested Commit Message:**
+feat(verification): implement Self-RAG evidence sufficiency and bounded retrieval loop
+
+**Next Task:**
+V4-VERIF-COV-001
+
+---
+
+## V4-VERIF-COV-001
+
+**Title:** Chain of Verification (CoV) & Structured Evidence Ledger
+
+**Objective:**
+Implement Chain of Verification (CoV) claim decomposition, question generation, cross-verification against source text, and create an immutable Evidence Ledger linking each verified claim to source chunks and pages.
+
+**Prerequisites:**
+- V4-VERIF-RAG-001
+
+**Input:**
+- Draft text or permit fields and retrieved source context.
+
+**Expected Output:**
+- `backend/verification/chain_of_verification.py` decomposing claims and verifying against context.
+- `backend/verification/evidence_ledger.py` creating the structured audit ledger.
+- Unit tests in `backend/tests/test_chain_of_verification.py`.
+
+**Files to Create / Modify:**
+- `backend/verification/chain_of_verification.py` (Create)
+- `backend/verification/evidence_ledger.py` (Create)
+- `backend/tests/test_chain_of_verification.py` (Create)
+
+**Implementation Notes:**
+- Extend the existing VigilOps architecture only within the explicitly authorized V4 scope. Do not redesign or modify unrelated architectural components. Any additional architectural change requires explicit prior approval from the project owner.
+
+**Acceptance Criteria:**
+- Verifies numerical figures, equipment tags, and isolation steps.
+- Flags unverified claims with `UNVERIFIED_REQUIRES_HUMAN_CHECK`.
+- Evidence Ledger contains accurate chunk IDs and citations.
+
+**Evaluation:**
+- PASS: 6/6 unit tests in test_chain_of_verification.py passed; full 646 test suite passed with zero regressions.
+
+**Status:**
+COMPLETED
+
+**Suggested Commit Message:**
+feat(verification): implement Chain of Verification and structured Evidence Ledger
+
+**Next Task:**
+V4-PERMIT-001
+
+---
+
+## V4-PERMIT-001
+
+**Title:** Industrial Permit Generation Engine, Templates & Field Extraction
+
+**Objective:**
+Implement the flagship industrial permit generation engine supporting General Work, Hot Work, Cold Work, Confined Space Entry, and Lockout/Tagout Isolation permits with strict source grounding.
+
+**Prerequisites:**
+- V4-VERIF-COV-001
+
+**Input:**
+- Maintenance job request, equipment records, safety procedures, and permit templates.
+
+**Expected Output:**
+- `backend/permits/permit_models.py` (Permit schemas and enums).
+- `backend/permits/permit_engine.py` (Draft generation, field mapping, missing field detection).
+- Unit tests in `backend/tests/test_permit_engine.py`.
+
+**Files to Create / Modify:**
+- `backend/permits/permit_models.py` (Create)
+- `backend/permits/permit_engine.py` (Create)
+- `backend/tests/test_permit_engine.py` (Create)
+
+**Implementation Notes:**
+- Extend the existing VigilOps architecture only within the explicitly authorized V4 scope. Do not redesign or modify unrelated architectural components. Any additional architectural change requires explicit prior approval from the project owner.
+- Never fabricate isolation points or equipment tags.
+
+**Acceptance Criteria:**
+- Accurate permit drafting for all 5 industrial permit types.
+- Missing safety information flagged immediately.
+- Unit tests pass.
+
+**Evaluation:**
+- PASS: 6/6 unit tests in test_permit_engine.py passed; full test suite passing with zero regressions.
+
+**Status:**
+COMPLETED
+
+**Suggested Commit Message:**
+feat(permits): implement industrial work permit drafting engine and templates
+
+**Next Task:**
+V4-PERMIT-SAFETY-001
+
+---
+
+## V4-PERMIT-SAFETY-001
+
+**Title:** Permit Deterministic Safety Rules, Hazard & LOTO Verification
+
+**Objective:**
+Implement deterministic safety rule checks, gas testing limits, PPE matrices, and Lockout/Tagout isolation verification against knowledge graph relationships and safety procedures.
+
+**Prerequisites:**
+- V4-PERMIT-001
+
+**Input:**
+- Drafted permit, plant safety rules, and equipment isolation diagrams.
+
+**Expected Output:**
+- `backend/permits/safety_validator.py` enforcing strict safety constraints (LEL < 10%, O2 19.5-23.5%, LOTO valve confirmation).
+- Unit tests in `backend/tests/test_permit_safety_validator.py`.
+
+**Files to Create / Modify:**
+- `backend/permits/safety_validator.py` (Create)
+- `backend/tests/test_permit_safety_validator.py` (Create)
+
+**Implementation Notes:**
+- Extend the existing VigilOps architecture only within the explicitly authorized V4 scope. Do not redesign or modify unrelated architectural components. Any additional architectural change requires explicit prior approval from the project owner.
+
+**Acceptance Criteria:**
+- Out-of-spec gas limits or missing isolation breakers immediately trigger `SAFETY_RULE_VIOLATION`.
+- Valid permits proceed to review stage.
+
+**Evaluation:**
+- PASS: 6/6 unit tests in test_permit_safety_validator.py passed; deterministic gas thresholds and LOTO rules verified.
+
+**Status:**
+COMPLETED
+
+**Suggested Commit Message:**
+feat(permits): implement deterministic industrial safety and isolation validator
+
+**Next Task:**
+V4-HUMAN-REV-001
+
+---
+
+## V4-HUMAN-REV-001
+
+**Title:** Permit Human Review, Sign-off State Machine & Audit Traceability
+
+**Objective:**
+Implement the permit sign-off state machine enforcing that permits remain drafts or ready for review, strictly preventing autonomous AI authorization and providing human approval boundaries with audit logging.
+
+**Prerequisites:**
+- V4-PERMIT-SAFETY-001
+
+**Input:**
+- Validated permit draft, human reviewer credentials.
+
+**Expected Output:**
+- `backend/permits/review_service.py` managing permit states (`DRAFT_GENERATED`, `VERIFICATION_INCOMPLETE`, `READY_FOR_REVIEW`, `AUTHORIZED_BY_HUMAN`).
+- Unit tests in `backend/tests/test_permit_review_service.py`.
+
+**Files to Create / Modify:**
+- `backend/permits/review_service.py` (Create)
+- `backend/api/routes/artifacts.py` (Create/Modify)
+- `backend/tests/test_permit_review_service.py` (Create)
+
+**Implementation Notes:**
+- Extend the existing VigilOps architecture only within the explicitly authorized V4 scope. Do not redesign or modify unrelated architectural components. Any additional architectural change requires explicit prior approval from the project owner.
+- AI is strictly prohibited from transitioning a permit to `AUTHORIZED_BY_HUMAN`.
+
+**Acceptance Criteria:**
+- Any automated attempt to mark a permit as authorized is rejected.
+- Valid human review updates state machine with user ID and timestamp.
+
+**Evaluation:**
+- PASS: 8/8 unit tests in test_permit_review_service.py passed; human sign-off gating and AI blocking strictly enforced.
+
+**Status:**
+COMPLETED
+
+**Suggested Commit Message:**
+feat(permits): implement human sign-off state machine and audit traceability
+
+**Next Task:**
+V4-FE-DELIV-001
+
+---
+
+## V4-FE-DELIV-001
+
+**Title:** Frontend Deliverable UI: Activity Stream, Artifact Downloader & Permit Review Cards
+
+**Objective:**
+Extend the frontend UI to display deliverable generation progress in `AgentActivityStream`, downloadable artifact cards in `ChatView`, active conversation image context chips, and permit review inspection cards.
+
+**Prerequisites:**
+- V4-HUMAN-REV-001
+
+**Input:**
+- Backend streaming events and artifact download APIs.
+
+**Expected Output:**
+- Updated `frontend/src/components/ChatView.tsx`, `AgentActivityStream.tsx`, and `frontend/src/services/api.ts`.
+- Clean frontend production build via `npm run build`.
+
+**Files to Create / Modify:**
+- `frontend/src/services/api.ts` (Modify)
+- `frontend/src/components/ChatView.tsx` (Modify)
+- `frontend/src/components/AgentActivityStream.tsx` (Modify)
+
+**Implementation Notes:**
+- Extend the existing VigilOps architecture only within the explicitly authorized V4 scope. Do not redesign or modify unrelated architectural components. Any additional architectural change requires explicit prior approval from the project owner.
+- Preserve existing Tailwind styling and Next.js 16 structure.
+
+**Acceptance Criteria:**
+- Artifact cards display file format icon, file size, evidence verification badge, and direct download button.
+- Active image context chip indicates persistent diagram availability.
+- Frontend builds cleanly with zero errors.
+
+**Evaluation:**
+- PASS: Next.js 16.2.10 production build succeeded with Turbopack in 2.1s (exit code 0); deliverable download cards, permit review cards, and persistent diagram context chip implemented.
+
+**Status:**
+COMPLETED
+
+**Suggested Commit Message:**
+feat(ui): implement deliverable artifact download cards and permit review UI
+
+**Next Task:**
+V4-REGRESS-001
+
+---
+
+## V4-REGRESS-001
+
+**Title:** Comprehensive Version 4 Regression, Security & Safety Verification
+
+**Objective:**
+Execute the entire test suite including all 611 baseline tests and all new Version 4 test suites, verify that no architectural boundaries were breached, verify multi-user isolation, and confirm 100% test pass rate.
+
+**Prerequisites:**
+- V4-FE-DELIV-001
+
+**Input:**
+- Entire backend test suite and frontend build.
+
+**Expected Output:**
+- 100% test pass rate across all suites.
+- Verified architecture freeze compliance.
+
+**Files to Create / Modify:**
+- None (Verification task)
+
+**Implementation Notes:**
+- Extend the existing VigilOps architecture only within the explicitly authorized V4 scope. Do not redesign or modify unrelated architectural components. Any additional architectural change requires explicit prior approval from the project owner.
+
+**Acceptance Criteria:**
+- All 611 baseline tests pass with zero regressions.
+- All new Phase 18 unit tests pass.
+- Frontend builds cleanly without error.
+
+**Evaluation:**
+- PASS: 666/666 tests passed in 6.059s with 100% pass rate; frontend build succeeded via Next.js Turbopack; 0 regressions; architecture freeze fully respected.
+
+**Status:**
+COMPLETED
+
+**Suggested Commit Message:**
+test(v4): execute comprehensive version 4 regression and security verification
+
+**Next Task:**
+V4-PID-3WAY-001
+
+---
+
+## Task V4-PID-3WAY-001: P&ID 3-Way Check & YOLO Symbol Localization
+
+**Title:**
+Industrial P&ID 3-Way Check Decision Architecture & YOLO Symbol Localization
+
+**Objective:**
+Implement the SIH 2024 industrial verification architecture for Piping & Instrumentation Diagrams:
+1. Detect P&ID diagrams and evaluate candidate symbols against refinery ISA 5.1 specifications.
+2. If a symbol deviates from ANSI/ISA-5.1 or triggers a 2-way check (e.g. non-ISA symbol, missing from asset register, or ambiguous OCR), localize its bounding box with YOLO/spatial localizer and crop out the visual snippet.
+3. Evaluate the 3-Way Check decision dimensions:
+   - Check 1: Symbol probability (visual detection score >= 70%)
+   - Check 2: OCR Confidence (tag recognition score >= 70%)
+   - Check 3: In asset register (verified in refinery Neo4j knowledge graph)
+4. Route decision:
+   - 3/3 Confirm (Green): All dimensions pass -> Automated ingestion & confirmation.
+   - 2/3 Human Check (Yellow): 2 of 3 checks pass -> Localized symbol cropped and displayed to human operator with 2-way check diagnostic breakdown.
+   - 1/3 Reject (Red): <= 1 check passes -> Spurious noise / artifact.
+5. Provide UI interaction in `ChatView.tsx` with operator confirmation (`APPROVE_AND_REGISTER`, `RECLASSIFY`, `REJECT`).
+
+**Files Created:**
+- `backend/ingestion/pid/__init__.py`
+- `backend/ingestion/pid/isa_catalog.py`
+- `backend/ingestion/pid/yolo_detector.py`
+- `backend/ingestion/pid/three_way_check.py`
+- `backend/tests/test_pid_three_way_check.py`
+- `frontend/src/components/PIDThreeWayCheckCard.tsx`
+
+**Files Modified:**
+- `backend/agents/tools/analyze_pid.py`
+- `backend/agents/orchestrator.py`
+- `backend/dependencies.py`
+- `backend/api/routes/query.py`
+- `frontend/src/services/api.ts`
+- `frontend/src/components/ChatView.tsx`
+
+**Status:**
+COMPLETED
+
+**Suggested Commit Message:**
+feat(pid): implement 3-way check verification and YOLO symbol localization
+
+---
+
+# Rule
+
+Never move to the next task until the current task:
+- Builds successfully
+- Passes evaluation
+- Is committed to Git
+- Is documented if needed
 
 ---
 

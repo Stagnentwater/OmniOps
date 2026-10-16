@@ -16,6 +16,7 @@ from api.routes.knowledge import router as knowledge_router
 from api.routes.chat import router as chat_router
 from api.routes.auth import router as auth_router
 from api.routes.profile import router as profile_router
+from api.routes.artifacts import router as artifacts_router
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(message)s")
 logger = logging.getLogger(__name__)
@@ -79,3 +80,4 @@ app.include_router(knowledge_router)
 app.include_router(chat_router)
 app.include_router(auth_router)
 app.include_router(profile_router)
+app.include_router(artifacts_router)

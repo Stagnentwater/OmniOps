@@ -34,6 +34,7 @@ class TestConnectionPool(unittest.TestCase):
         self.assertFalse(pool.is_initialized)
         self.assertIsNone(pool.neo4j)
         self.assertIsNone(pool.qdrant)
+        self.assertIsNone(pool.redis)
 
     @patch("config.connection_pool.ConnectionPool.initialize")
     def test_initialize_sets_flag(self, mock_init) -> None:
@@ -46,15 +47,19 @@ class TestConnectionPool(unittest.TestCase):
     def test_close_clears_connections(self) -> None:
         pool = self._make_pool()
         mock_neo4j = MagicMock()
+        mock_redis = MagicMock()
         pool._neo4j_conn = mock_neo4j
         pool._qdrant_conn = MagicMock()
+        pool._redis_conn = mock_redis
         pool._initialized = True
 
         pool.close()
 
         mock_neo4j.close.assert_called_once()
+        mock_redis.close.assert_called_once()
         self.assertIsNone(pool._neo4j_conn)
         self.assertIsNone(pool._qdrant_conn)
+        self.assertIsNone(pool._redis_conn)
         self.assertFalse(pool.is_initialized)
 
     def test_close_handles_neo4j_error(self) -> None:
@@ -88,13 +93,17 @@ class TestConnectionPool(unittest.TestCase):
         pool = self._make_pool()
         mock_neo4j = MagicMock()
         mock_qdrant = MagicMock()
+        mock_redis = MagicMock()
         pool._neo4j_conn = mock_neo4j
         pool._qdrant_conn = mock_qdrant
+        pool._redis_conn = mock_redis
 
         health = pool.health_check()
         self.assertEqual(health["neo4j"], "healthy")
         self.assertEqual(health["qdrant"], "healthy")
+        self.assertEqual(health["redis"], "healthy")
         mock_neo4j.verify_connectivity.assert_called_once()
+        mock_redis.ping.assert_called_once()
 
     def test_health_check_unhealthy_neo4j(self) -> None:
         pool = self._make_pool()

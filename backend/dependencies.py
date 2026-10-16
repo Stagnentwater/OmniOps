@@ -86,6 +86,13 @@ def register_connection_pool(pool) -> None:
     _app_connection_pool = pool
 
 
+def get_redis_client():
+    """Retrieve the application-level pooled Redis client if available."""
+    if _app_connection_pool is not None and _app_connection_pool.is_initialized:
+        return _app_connection_pool.redis
+    return None
+
+
 def get_query_orchestrator() -> "QueryOrchestrator":
     from query.orchestrator import QueryOrchestrator
     
@@ -275,10 +282,21 @@ def get_analyze_image_tool() -> "AnalyzeImageTool":
 
 
 def get_analyze_pid_tool() -> "AnalyzePIDTool":
-    """Instantiate AnalyzePIDTool backed by the application VisionProvider."""
+    """Instantiate AnalyzePIDTool backed by VisionProvider and GraphQueryService."""
     from agents.tools.analyze_pid import AnalyzePIDTool
+    from graph.neo4j_repository import Neo4jGraphRepository
+    from graph.query_service import GraphQueryService
 
-    return AnalyzePIDTool(get_vision_provider())
+    graph_query = None
+    try:
+        neo4j_conn, _ = _get_connections()
+        if neo4j_conn:
+            graph_repo = Neo4jGraphRepository(neo4j_conn)
+            graph_query = GraphQueryService(graph_repo)
+    except Exception:
+        graph_query = None
+
+    return AnalyzePIDTool(get_vision_provider(), graph_service=graph_query)
 
 
 def get_search_documents_tool() -> "SearchDocumentsTool":
@@ -327,11 +345,14 @@ def get_agent_orchestrator() -> "AgentOrchestrator":
         model=settings.models.reasoning_model,
     )
     chat_repo = ChatRepository()
+    from agents.intent_interpreter import IntentInterpreter
+    intent_interpreter = IntentInterpreter(llm_provider=provider)
 
     return AgentOrchestrator(
         llm_provider=provider,
         tool_registry=registry,
         tool_executor=executor,
+        intent_interpreter=intent_interpreter,
         max_iterations=settings.agent.max_iterations,
         timeout_seconds=settings.agent.timeout_seconds,
         chat_repository=chat_repo,

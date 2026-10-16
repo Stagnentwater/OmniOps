@@ -11,6 +11,7 @@ import { IngestionView } from "@/components/IngestionView";
 import { OverviewView } from "@/components/OverviewView";
 import { AuthModal } from "@/components/AuthModal";
 import { ProfileView } from "@/components/ProfileView";
+import { DeliverablesView } from "@/components/DeliverablesView";
 import { X, BookOpen, Download, FileText, LogOut, User as UserIcon } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -48,6 +49,9 @@ export default function UnifiedPage() {
   const [answer, setAnswer] = useState("");
   const [citations, setCitations] = useState<any[]>([]);
 
+  // ─── Deliverables State ─────────────────────────────────
+  const [deliverables, setDeliverables] = useState<any[]>([]);
+
   // ─── Authentication State ─────────────────────────────────
   const [currentUser, setCurrentUser] = useState<UserInfo | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -65,6 +69,7 @@ export default function UnifiedPage() {
         setCurrentUser(user);
         fetchDocuments();
         fetchGraphData();
+        fetchDeliverables();
         fetchChatSessions().then(sessions => {
           if (typeof window !== "undefined") {
             const savedSessionId = localStorage.getItem("omniops_active_session_id");
@@ -94,11 +99,18 @@ export default function UnifiedPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (activeView === "deliverables" && currentUser) {
+      fetchDeliverables();
+    }
+  }, [activeView, currentUser]);
+
   const handleAuthSuccess = (user: UserInfo) => {
     setCurrentUser(user);
     setIsAuthModalOpen(false);
     fetchDocuments();
     fetchGraphData();
+    fetchDeliverables();
     fetchChatSessions();
   };
 
@@ -106,6 +118,7 @@ export default function UnifiedPage() {
     ApiClient.logout();
     setCurrentUser(null);
     setChatSessions([]);
+    setDeliverables([]);
     setMessages([]);
     setActiveSessionId(null);
     setIsAuthModalOpen(true);
@@ -121,6 +134,17 @@ export default function UnifiedPage() {
         designation: updatedProfile.designation,
       };
     });
+  };
+
+  const fetchDeliverables = async () => {
+    try {
+      const res = await ApiClient.getMyDeliverables();
+      setDeliverables(res || []);
+      return res;
+    } catch (err) {
+      console.error("Failed to load deliverables", err);
+      return [];
+    }
   };
 
   const fetchChatSessions = async () => {
@@ -308,6 +332,7 @@ export default function UnifiedPage() {
           setActiveActivities([]);
           setMode("answered");
           fetchChatSessions();
+          fetchDeliverables();
         } else if (event.stage === "FAILED") {
           setMode(messages.length > 0 ? "answered" : "idle");
           setStreamingAnswer("");
@@ -618,6 +643,7 @@ export default function UnifiedPage() {
               attachedImage={attachedImage}
               onAttachedImageChange={setAttachedImage}
               onPreviewImage={handlePreviewImage}
+              onNavigateToDeliverables={() => setActiveView("deliverables")}
             />
           </motion.div>
         )}
@@ -684,6 +710,28 @@ export default function UnifiedPage() {
             <ProfileView
               currentUser={currentUser}
               onProfileUpdated={handleProfileUpdated}
+            />
+          </motion.div>
+        )}
+
+        {activeView === "deliverables" && (
+          <motion.div
+            key="deliverables"
+            initial={{ opacity: 0, x: -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 8 }}
+            transition={{ duration: 0.15 }}
+            className="flex-1 flex overflow-hidden"
+          >
+            <DeliverablesView
+              deliverables={deliverables}
+              onRefresh={fetchDeliverables}
+              onNavigateToChat={(starterPrompt) => {
+                if (starterPrompt) {
+                  setQueryInput(starterPrompt);
+                }
+                setActiveView("chat");
+              }}
             />
           </motion.div>
         )}

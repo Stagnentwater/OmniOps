@@ -19,6 +19,8 @@ import {
   Terminal,
   Layers,
   Sparkles,
+  FileText,
+  ShieldCheck,
 } from "lucide-react";
 
 export interface AgentActivityItem {
@@ -55,7 +57,13 @@ function getActivityIcon(activity: AgentActivityItem) {
   if (tool === "analyze_image" || tool === "analyze_pid" || type.includes("vision") || type.includes("image")) {
     return Eye;
   }
-  if (type.includes("reasoning") || type.includes("synthesiz")) {
+  if (type.includes("permit") || type.includes("safety") || type.includes("verif") || type.includes("cov") || type.includes("rag")) {
+    return ShieldCheck;
+  }
+  if (type.includes("deliverable") || type.includes("outline") || type.includes("section") || type.includes("word") || type.includes("pdf") || type.includes("pptx")) {
+    return FileText;
+  }
+  if (type.includes("reasoning") || type.includes("synthesiz") || type.includes("intent") || type.includes("plan")) {
     return BrainIcon;
   }
   return Cpu;

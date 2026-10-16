@@ -15,11 +15,14 @@ def enqueue_ingestion_job(
 ) -> str:
     """Enqueue the ingestion orchestrator job and return RQ job ID."""
     settings = get_settings()
-    redis_connection = Redis(
-        host=settings.redis.host,
-        port=settings.redis.port,
-        db=settings.redis.db,
-    )
+    if settings.redis.url:
+        redis_connection = Redis.from_url(settings.redis.url)
+    else:
+        redis_connection = Redis(
+            host=settings.redis.host,
+            port=settings.redis.port,
+            db=settings.redis.db,
+        )
     queue = Queue(name=settings.queue.name, connection=redis_connection)
     retry_policy = Retry(
         max=settings.queue.retry_max,

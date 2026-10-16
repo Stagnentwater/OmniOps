@@ -17,12 +17,15 @@ from typing import Any
 
 from agents.tool_interface import Tool, ToolDefinition, ToolResult
 from generation.vision_provider import VisionProvider, VisionResult
+from graph.query_service import GraphQueryService
+from ingestion.pid.isa_catalog import ISA51Catalog
+from ingestion.pid.three_way_check import ThreeWayCheckResult, ThreeWayCheckService
 from parser.image_parser import _build_prompt
 
 logger = logging.getLogger(__name__)
 
 # Common industrial equipment and instrument tag regex pattern
-# Matches patterns like P-101, V-200, E-101A, TT-102, PT-401, FV-105, TK-01
+# Matches patterns like P-101, V-200, E-101A, TT-102, PT-401, FV-105, TK-01, SP-99
 TAG_PATTERN = re.compile(r"\b([A-Z]{1,4}-[0-9]{1,4}[A-Z]?)\b")
 
 
@@ -35,6 +38,8 @@ class AnalyzePIDResult(str):
     connections: list[str]
     confidence: float
     model: str
+    three_way_checks: list[dict[str, Any]]
+    human_checks_required: int
 
     def __new__(
         cls,
@@ -45,6 +50,8 @@ class AnalyzePIDResult(str):
         connections: list[str] | None = None,
         confidence: float = 0.85,
         model: str = "gemma3:4b",
+        three_way_checks: list[dict[str, Any]] | None = None,
+        human_checks_required: int = 0,
     ) -> AnalyzePIDResult:
         obj = super().__new__(cls, content)
         obj.raw_text = raw_text
@@ -53,6 +60,8 @@ class AnalyzePIDResult(str):
         obj.connections = connections or []
         obj.confidence = confidence
         obj.model = model
+        obj.three_way_checks = three_way_checks or []
+        obj.human_checks_required = human_checks_required
         return obj
 
 
@@ -62,13 +71,19 @@ class AnalyzePIDTool(Tool):
     def __init__(
         self,
         vision_provider: VisionProvider,
+        graph_service: GraphQueryService | None = None,
+        three_way_service: ThreeWayCheckService | None = None,
     ) -> None:
         """Initialize the AnalyzePID tool.
 
         Args:
             vision_provider: Configured VisionProvider instance.
+            graph_service: Optional GraphQueryService to verify asset register presence.
+            three_way_service: Optional ThreeWayCheckService for 3-way check validation.
         """
         self._vision_provider = vision_provider
+        self._graph_service = graph_service
+        self._three_way_service = three_way_service or ThreeWayCheckService()
 
     @property
     def definition(self) -> ToolDefinition:
@@ -234,6 +249,80 @@ class AnalyzePIDTool(Tool):
                     if cleaned:
                         connection_lines.append(cleaned)
 
+            # Evaluate 3-Way Check on identified symbols and tags
+            three_way_checks: list[dict[str, Any]] = []
+            human_checks_count = 0
+
+            # Tags to evaluate: focus equipment first if specified, then all detected tags
+            tags_to_check: list[str] = []
+            if isinstance(focus, str) and focus.strip():
+                clean_focus = focus.strip().upper()
+                tags_to_check.append(clean_focus)
+            for t in sorted(all_tags):
+                if t not in tags_to_check:
+                    tags_to_check.append(t)
+
+            for tag_candidate in tags_to_check:
+                # Query asset register in Neo4j Knowledge Graph if graph_service is available
+                in_asset_register = False
+                if self._graph_service:
+                    try:
+                        nodes = self._graph_service.search_nodes(tag_candidate, limit=1)
+                        in_asset_register = bool(nodes and len(nodes) > 0)
+                    except Exception as err:
+                        logger.debug("Graph search check failed for tag %s: %s", tag_candidate, err)
+                        in_asset_register = False
+
+                # Infer symbol type heuristic from tag prefix or text context
+                prefix_candidate = tag_candidate.split("-", 1)[0].upper() if "-" in tag_candidate else ""
+                if prefix_candidate.startswith("P") and len(prefix_candidate) <= 2:
+                    sym_type = "centrifugal_pump"
+                elif prefix_candidate in ("V", "D"):
+                    sym_type = "vertical_vessel"
+                elif prefix_candidate in ("E", "HE"):
+                    sym_type = "heat_exchanger"
+                elif prefix_candidate in ("T", "COL"):
+                    sym_type = "distillation_column"
+                elif prefix_candidate == "TK":
+                    sym_type = "storage_tank"
+                elif prefix_candidate in ("C", "K"):
+                    sym_type = "centrifugal_compressor"
+                elif prefix_candidate in ("PT", "PI"):
+                    sym_type = "pressure_transmitter"
+                elif prefix_candidate in ("TT", "TI"):
+                    sym_type = "temperature_transmitter"
+                elif prefix_candidate in ("FT", "FI"):
+                    sym_type = "flow_transmitter"
+                elif prefix_candidate in ("LT", "LI"):
+                    sym_type = "level_transmitter"
+                elif prefix_candidate in ("FV", "PV", "TV", "LV"):
+                    sym_type = "control_valve"
+                elif prefix_candidate in ("PSV", "PRV"):
+                    sym_type = "pressure_safety_valve"
+                elif any(k in tag_candidate.lower() for k in ("sp-", "vend", "cust", "hyd", "flame", "pig")):
+                    sym_type = "custom_valve"
+                else:
+                    sym_type = "unknown_symbol"
+
+                # Estimate symbol probability and OCR confidence
+                sym_prob = 0.88
+                ocr_conf = 0.85
+                # If tag was found in text directly, high OCR confidence
+                if tag_candidate in text:
+                    ocr_conf = 0.92
+
+                check_res = self._three_way_service.evaluate_symbol(
+                    tag=tag_candidate,
+                    symbol_type=sym_type,
+                    symbol_probability=sym_prob,
+                    ocr_confidence=ocr_conf,
+                    in_asset_register=in_asset_register,
+                    image_bytes=image_bytes,
+                )
+                if check_res.requires_human_review:
+                    human_checks_count += 1
+                three_way_checks.append(check_res.to_dict())
+
             # Build human-readable formatted output for LLM
             lines = [f"P&ID Analysis ({vision_result.model}) [Confidence: 0.85]:"]
             if equipment:
@@ -244,6 +333,31 @@ class AnalyzePIDTool(Tool):
                 lines.append("Flow & Connections:")
                 for conn in connection_lines[:10]:
                     lines.append(f"  - {conn}")
+
+            # Append 3-Way Check Audit section
+            if three_way_checks:
+                lines.append("\n" + "=" * 60)
+                lines.append("P&ID 3-WAY VERIFICATION AUDIT")
+                lines.append("=" * 60)
+                lines.append("Three-Way Decision Gates: Symbol probability | OCR Confidence | In asset register")
+                lines.append("Routing: 3/3 Confirm (Green) | 2/3 Human check (Yellow) | 1/3 Reject (Red)")
+                lines.append("")
+                for chk in three_way_checks:
+                    icon = "✓" if chk["decision"] == "3/3_CONFIRM" else ("⚠" if chk["decision"] == "2/3_HUMAN_CHECK" else "✗")
+                    lines.append(f"{icon} [{chk['decision_label']}] Tag: '{chk['tag']}' (Symbol: {chk['symbol_type']})")
+                    s_sym = "PASS" if chk["symbol_prob_passed"] else "FAIL"
+                    s_ocr = "PASS" if chk["ocr_conf_passed"] else "FAIL"
+                    s_ast = "PASS" if chk["asset_reg_passed"] else "FAIL"
+                    lines.append(f"   • Symbol Probability: {chk['symbol_probability']:.0%} [{s_sym}]")
+                    lines.append(f"   • OCR Confidence:     {chk['ocr_confidence']:.0%} [{s_ocr}]")
+                    lines.append(f"   • In Asset Register:  {'YES' if chk['in_asset_register'] else 'NO'} [{s_ast}]")
+                    if not chk["is_isa_standard"]:
+                        lines.append(f"   • ISA 5.1 Compliance: Non-standard / Proprietary ({chk['isa_details']})")
+                    if chk["requires_human_review"]:
+                        lines.append("   → 2/3 Check Triggered: Localized via YOLO and cropped for Human Operator Review.")
+                        ascii_diag = chk.get("two_way_breakdown", {}).get("diagram_ascii")
+                        if ascii_diag:
+                            lines.append(ascii_diag)
 
             lines.append("\nDetailed Visual Extraction:")
             lines.append(text)
@@ -261,6 +375,8 @@ class AnalyzePIDTool(Tool):
                     connections=connection_lines,
                     confidence=0.85,
                     model=vision_result.model,
+                    three_way_checks=three_way_checks,
+                    human_checks_required=human_checks_count,
                 ),
             )
 

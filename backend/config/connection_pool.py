@@ -31,6 +31,7 @@ class ConnectionPool:
         self._settings = settings
         self._neo4j_conn: Any = None
         self._qdrant_conn: Any = None
+        self._redis_conn: Any = None
         self._initialized = False
 
     def initialize(self) -> None:
@@ -69,6 +70,33 @@ class ConnectionPool:
             logger.error("Failed to initialize Qdrant connection: %s", e)
             self._qdrant_conn = None
 
+        # Redis
+        try:
+            from redis import Redis
+            redis_settings = getattr(self._settings, "redis", None)
+            if redis_settings is not None:
+                if getattr(redis_settings, "url", None):
+                    self._redis_conn = Redis.from_url(
+                        redis_settings.url,
+                        decode_responses=False,
+                        socket_connect_timeout=2,
+                    )
+                else:
+                    self._redis_conn = Redis(
+                        host=getattr(redis_settings, "host", "localhost"),
+                        port=getattr(redis_settings, "port", 6379),
+                        db=getattr(redis_settings, "db", 0),
+                        decode_responses=False,
+                        socket_connect_timeout=2,
+                    )
+                self._redis_conn.ping()
+                logger.info("Redis connection pool initialized.")
+            else:
+                self._redis_conn = None
+        except Exception as e:
+            logger.warning("Failed to initialize Redis connection: %s", e)
+            self._redis_conn = None
+
         self._initialized = True
         logger.info("ConnectionPool initialization complete.")
 
@@ -81,6 +109,11 @@ class ConnectionPool:
     def qdrant(self) -> Any:
         """Return the Qdrant connection manager, or None if unavailable."""
         return self._qdrant_conn
+
+    @property
+    def redis(self) -> Any:
+        """Return the Redis connection client, or None if unavailable."""
+        return self._redis_conn
 
     @property
     def is_initialized(self) -> bool:
@@ -101,6 +134,14 @@ class ConnectionPool:
         # but we clear the reference for safety
         self._qdrant_conn = None
         logger.info("Qdrant connection reference cleared.")
+
+        if self._redis_conn is not None:
+            try:
+                self._redis_conn.close()
+                logger.info("Redis connection pool closed.")
+            except Exception as e:
+                logger.error("Error closing Redis connection: %s", e)
+            self._redis_conn = None
 
         self._initialized = False
         logger.info("ConnectionPool shutdown complete.")
@@ -129,5 +170,15 @@ class ConnectionPool:
                 status["qdrant"] = f"unhealthy: {e}"
         else:
             status["qdrant"] = "not_initialized"
+
+        # Redis
+        if self._redis_conn is not None:
+            try:
+                self._redis_conn.ping()
+                status["redis"] = "healthy"
+            except Exception as e:
+                status["redis"] = f"unhealthy: {e}"
+        else:
+            status["redis"] = "not_initialized"
 
         return status

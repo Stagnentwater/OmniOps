@@ -4,9 +4,12 @@ import { useRef, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Search, User, X, Plus, MessageSquare, 
-  BookOpen, FileText, ChevronRight, ImagePlus, Eye
+  BookOpen, FileText, ChevronRight, ImagePlus, Eye,
+  Download, ShieldCheck, CheckCircle, AlertTriangle
 } from "lucide-react";
+import { ApiClient } from "@/services/api";
 import { AgentActivityStream, AgentActivityItem } from "@/components/AgentActivityStream";
+import { PIDThreeWayCheckCard } from "@/components/PIDThreeWayCheckCard";
 
 export interface AttachedImageState {
   file?: File;
@@ -61,6 +64,9 @@ export interface ChatViewProps {
 
   // Documents (for citation display)
   documents: any[];
+
+  // Deliverables navigation
+  onNavigateToDeliverables?: () => void;
 }
 
 export function ChatView({
@@ -88,6 +94,7 @@ export function ChatView({
   attachedImage,
   onAttachedImageChange,
   onPreviewImage,
+  onNavigateToDeliverables,
 }: ChatViewProps) {
   // ─── Scroll Container References & Detection ─────────────────
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -229,26 +236,106 @@ export function ChatView({
             onScroll={handleScroll}
             className="flex-1 overflow-y-auto p-5 flex flex-col gap-5 min-h-0"
           >
-            {/* Idle Placeholder */}
+            {/* Idle Placeholder with Industrial Document & Query Starters */}
             {messages.length === 0 && mode === "idle" && (
               <motion.div
                 key="idle"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
-                className="flex-1 flex flex-col items-center justify-center text-center gap-4 my-auto"
+                className="flex-1 flex flex-col items-center justify-center text-center gap-6 my-auto max-w-2xl mx-auto px-4 py-8"
               >
-                <div className="w-16 h-16 rounded-2xl border border-dashed border-[var(--color-border)] flex items-center justify-center opacity-30">
-                  <Search className="w-7 h-7 text-[var(--color-text-muted)]" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-[var(--color-text-muted)]">
-                    Query the Knowledge Base
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shadow-lg shadow-indigo-500/5">
+                    <FileText className="w-7 h-7" />
+                  </div>
+                  <h3 className="text-base font-semibold text-[var(--color-text-primary)]">
+                    Industrial Knowledge & Document Intelligence
+                  </h3>
+                  <p className="text-xs text-[var(--color-text-muted)] max-w-md leading-relaxed">
+                    Ask engineering questions, analyze P&IDs, or generate formal industrial deliverables (Word SOPs, slide presentations, PDFs, and work permits) directly through conversation.
                   </p>
-                  <p className="text-xs text-[var(--color-text-muted)] mt-1 opacity-60 max-w-[280px]">
-                    Ask questions about your industrial documents. The system will retrieve context from the knowledge graph and generate a grounded answer.
-                  </p>
                 </div>
+
+                {/* Prompt Starters */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full text-left">
+                  <button
+                    type="button"
+                    onClick={() => onQueryInputChange("Draft a Hot Work permit for welding on Vessel V-201 with gas testing requirements and LOTO isolation schedule")}
+                    className="p-3 rounded-xl bg-[var(--color-surface-elevated)] border border-[var(--color-border)] hover:border-amber-500/40 hover:bg-amber-500/5 transition-all text-left group flex items-start gap-2.5 cursor-pointer"
+                  >
+                    <ShieldCheck className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+                    <div>
+                      <div className="text-xs font-semibold text-[var(--color-text-primary)] group-hover:text-amber-300 transition-colors">
+                        Draft Hot Work Permit
+                      </div>
+                      <div className="text-[11px] text-[var(--color-text-muted)] mt-0.5 line-clamp-2">
+                        Safety scope, LOTO isolation, and gas testing thresholds for Vessel V-201.
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onQueryInputChange("Generate a formal Word report detailing the lockout tagout procedure and safety handover for Pump P-101A")}
+                    className="p-3 rounded-xl bg-[var(--color-surface-elevated)] border border-[var(--color-border)] hover:border-blue-500/40 hover:bg-blue-500/5 transition-all text-left group flex items-start gap-2.5 cursor-pointer"
+                  >
+                    <FileText className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
+                    <div>
+                      <div className="text-xs font-semibold text-[var(--color-text-primary)] group-hover:text-blue-300 transition-colors">
+                        Generate Technical Word Report
+                      </div>
+                      <div className="text-[11px] text-[var(--color-text-muted)] mt-0.5 line-clamp-2">
+                        Formal .docx handover report with evidence grounding and tables.
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onQueryInputChange("Create a slide presentation on boiler feed water system failure modes, risk matrix, and mitigation actions")}
+                    className="p-3 rounded-xl bg-[var(--color-surface-elevated)] border border-[var(--color-border)] hover:border-orange-500/40 hover:bg-orange-500/5 transition-all text-left group flex items-start gap-2.5 cursor-pointer"
+                  >
+                    <FileText className="w-4 h-4 text-orange-400 mt-0.5 shrink-0" />
+                    <div>
+                      <div className="text-xs font-semibold text-[var(--color-text-primary)] group-hover:text-orange-300 transition-colors">
+                        Create Slide Deck (.pptx)
+                      </div>
+                      <div className="text-[11px] text-[var(--color-text-muted)] mt-0.5 line-clamp-2">
+                        Executive PowerPoint presentation with structured slide cards.
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onQueryInputChange("Generate a PDF document summarizing safety audit observations and equipment integrity checks")}
+                    className="p-3 rounded-xl bg-[var(--color-surface-elevated)] border border-[var(--color-border)] hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-all text-left group flex items-start gap-2.5 cursor-pointer"
+                  >
+                    <BookOpen className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
+                    <div>
+                      <div className="text-xs font-semibold text-[var(--color-text-primary)] group-hover:text-emerald-300 transition-colors">
+                        Generate Safety PDF
+                      </div>
+                      <div className="text-[11px] text-[var(--color-text-muted)] mt-0.5 line-clamp-2">
+                        Audit observations and equipment integrity SOP in PDF format.
+                      </div>
+                    </div>
+                  </button>
+                </div>
+
+                {onNavigateToDeliverables && (
+                  <div className="flex items-center gap-2 text-[11px] text-[var(--color-text-muted)] bg-[var(--color-surface-elevated)] px-3 py-1.5 rounded-full border border-[var(--color-border)]">
+                    <span>Generated deliverables are automatically cataloged in your account.</span>
+                    <button
+                      type="button"
+                      onClick={onNavigateToDeliverables}
+                      className="text-indigo-400 hover:text-indigo-300 font-semibold underline flex items-center gap-0.5"
+                    >
+                      Open Deliverables <ChevronRight className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
               </motion.div>
             )}
 
@@ -364,6 +451,128 @@ export function ChatView({
                   )}
 
                   {renderAnswerWithCitations(message.content, message.citations)}
+
+                  {/* Version 4: Deliverable Download Card */}
+                  {message.metadata?.artifact && (
+                    <div className="mt-4 p-3.5 rounded-xl bg-[var(--color-surface)] border border-indigo-500/30 flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 font-bold text-xs uppercase shrink-0">
+                          {message.metadata.artifact.format || "DOC"}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold text-[var(--color-text-primary)] truncate">
+                            {message.metadata.artifact.title || message.metadata.artifact.file_name || "Generated Industrial Deliverable"}
+                          </div>
+                          <div className="text-[10px] text-[var(--color-text-muted)] flex items-center gap-2 mt-0.5">
+                            <span className="truncate">{message.metadata.artifact.file_name}</span>
+                            {message.metadata.artifact.file_size_bytes && (
+                              <span>• {(message.metadata.artifact.file_size_bytes / 1024).toFixed(1)} KB</span>
+                            )}
+                            <span className="text-emerald-400 flex items-center gap-1 font-mono shrink-0">
+                              <CheckCircle className="w-2.5 h-2.5" /> Evidence Verified
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {onNavigateToDeliverables && (
+                          <button
+                            type="button"
+                            onClick={onNavigateToDeliverables}
+                            className="px-2.5 py-1.5 rounded-lg bg-[var(--color-surface-elevated)] hover:bg-[var(--color-border)] text-indigo-400 hover:text-indigo-300 text-xs font-medium border border-indigo-500/20 transition-colors flex items-center gap-1 cursor-pointer"
+                            title="View all your deliverables"
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                            <span>Deliverables Tab</span>
+                          </button>
+                        )}
+                        <a
+                          href={ApiClient.getArtifactDownloadUrl(message.metadata.artifact.document_id || message.metadata.document_id || message.id)}
+                          download
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium flex items-center gap-1.5 transition-colors shadow-sm"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>Download</span>
+                        </a>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Version 4: Industrial Permit Inspection & Review Card */}
+                  {message.metadata?.permit && (
+                    <div className="mt-4 p-4 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] flex flex-col gap-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
+                          <span className="text-xs font-bold text-[var(--color-text-primary)] truncate">
+                            {message.metadata.permit.title || "Industrial Work Permit"}
+                          </span>
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 shrink-0">
+                            {message.metadata.permit.permit_id}
+                          </span>
+                        </div>
+                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded uppercase font-semibold shrink-0 ${
+                          message.metadata.permit.status === 'AUTHORIZED_BY_HUMAN'
+                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                            : message.metadata.permit.status === 'READY_FOR_REVIEW'
+                            ? 'bg-blue-500/10 text-blue-400 border border-blue-500/30'
+                            : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                        }`}>
+                          {message.metadata.permit.status}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-[11px] text-[var(--color-text-muted)] bg-[var(--color-surface-elevated)] p-2.5 rounded-lg border border-[var(--color-border)]">
+                        <div><span className="text-zinc-500">Asset Tag:</span> <span className="font-mono text-zinc-200">{message.metadata.permit.equipment_tag || "N/A"}</span></div>
+                        <div><span className="text-zinc-500">Work Order:</span> <span className="font-mono text-zinc-200">{message.metadata.permit.work_order_number || "WO-PENDING"}</span></div>
+                        {message.metadata.permit.gas_testing && (
+                          <div className="col-span-2">
+                            <span className="text-zinc-500">Gas Limits:</span>{" "}
+                            <span className="font-mono text-zinc-200">
+                              LEL &le; {message.metadata.permit.gas_testing.lel_max_percent}% | O₂ {message.metadata.permit.gas_testing.oxygen_min_percent}-{message.metadata.permit.gas_testing.oxygen_max_percent}%
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between pt-1 border-t border-[var(--color-border)]">
+                        {onNavigateToDeliverables ? (
+                          <button
+                            type="button"
+                            onClick={onNavigateToDeliverables}
+                            className="text-[11px] text-indigo-400 hover:text-indigo-300 underline font-medium flex items-center gap-1 cursor-pointer"
+                          >
+                            <span>Inspect & Countersign in Deliverables tab</span>
+                            <ChevronRight className="w-3 h-3" />
+                          </button>
+                        ) : <div />}
+                        {message.metadata.permit.status === 'AUTHORIZED_BY_HUMAN' && (
+                          <div className="text-[11px] text-emerald-400 bg-emerald-500/5 px-2 py-1 rounded border border-emerald-500/20 flex items-center gap-1.5">
+                            <CheckCircle className="w-3.5 h-3.5 shrink-0" />
+                            <span>Authorized By: {message.metadata.permit.authorized_by}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Version 4.1: P&ID 3-Way Verification Audit & Localized Symbol Card */}
+                  {message.metadata?.three_way_checks && message.metadata.three_way_checks.length > 0 && (
+                    <PIDThreeWayCheckCard
+                      checks={message.metadata.three_way_checks}
+                      onPreviewImage={onPreviewImage}
+                    />
+                  )}
+
+                  {/* Version 4: Persistent Diagram Context Chip */}
+                  {(message.metadata?.active_image_context || (idx === messages.length - 1 && activeMetadata?.active_image_context)) && (
+                    <div className="mt-3 inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-indigo-500/10 border border-indigo-500/20 text-[10px] text-indigo-300">
+                      <Eye className="w-3 h-3 text-indigo-400 shrink-0" />
+                      <span>Active Diagram Context: Persistent P&ID available for follow-up queries.</span>
+                    </div>
+                  )}
                 </motion.div>
               );
             })}

@@ -320,4 +320,55 @@ export class ApiClient {
   static async deleteChatSession(sessionId: string) {
     return this.request<any>(`/chat/sessions/${sessionId}`, { method: "DELETE" });
   }
+
+  // --- Version 4 Deliverables & Industrial Permits ---
+
+  static getArtifactDownloadUrl(documentId: string): string {
+    return `${API_BASE}/artifacts/${documentId}/download`;
+  }
+
+  static async getPermitDetails(permitId: string) {
+    return this.request<any>(`/artifacts/permits/${permitId}`);
+  }
+
+  static async getMyDeliverables(): Promise<any[]> {
+    return this.request<any[]>("/artifacts/my-deliverables");
+  }
+
+  static async signOffPermit(
+    permitId: string,
+    payload: {
+      reviewer_name: string;
+      reviewer_role: string;
+      signature_confirmed: boolean;
+      is_automated_agent?: boolean;
+    }
+  ) {
+    return this.request<any>(`/artifacts/permits/${permitId}/sign-off`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  // --- P&ID 3-Way Check Human Verification ---
+
+  static async verifyPIDSymbol(payload: {
+    tag: string;
+    action: "APPROVE_AND_REGISTER" | "RECLASSIFY" | "REJECT";
+    reclassified_type?: string;
+    notes?: string;
+    session_id?: string;
+  }) {
+    return this.request<{
+      success: boolean;
+      tag: string;
+      action: string;
+      message: string;
+      asset_registered: boolean;
+    }>("/query/pid/verify-symbol", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
 }
+

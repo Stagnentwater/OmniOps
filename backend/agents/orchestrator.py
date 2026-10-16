@@ -23,6 +23,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from agents.intent_interpreter import IntentInterpreter, ParsedIntent
 from agents.ollama_agent_provider import OllamaAgentProvider, OllamaChatResponse
 from agents.state import AgentState
 from agents.tool_executor import ToolExecutor
@@ -146,10 +147,20 @@ def _generate_tool_completed_message(
     elif tool_name == "analyze_pid":
         eq = getattr(result.result, "equipment", None)
         conn = getattr(result.result, "connections", None)
+        three_way = getattr(result.result, "three_way_checks", None)
+        human_req = getattr(result.result, "human_checks_required", 0)
         num_eq = len(eq) if eq is not None else 0
         num_conn = len(conn) if conn is not None else 0
         metadata["equipment_count"] = num_eq
         metadata["connections_count"] = num_conn
+        if three_way:
+            metadata["three_way_checks"] = three_way
+            metadata["human_checks_required"] = human_req
+        if human_req > 0:
+            return (
+                f"P&ID analysis completed: {num_eq} equipment tag(s), {num_conn} connection(s). ⚠ {human_req} symbol(s) flagged for 2/3 Human Check.",
+                metadata,
+            )
         return (
             f"P&ID analysis completed: {num_eq} equipment tag(s), {num_conn} connection(s).",
             metadata,
@@ -169,6 +180,10 @@ class AgentResult:
     citations: list[dict[str, Any]] = field(default_factory=list)
     activities: list[dict[str, Any]] = field(default_factory=list)
     error: str | None = None
+    parsed_intent: ParsedIntent | None = None
+    artifact: Any | None = None
+    permit: Any | None = None
+    three_way_checks: list[dict[str, Any]] = field(default_factory=list)
 
 
 class AgentOrchestrator:
@@ -197,6 +212,7 @@ class AgentOrchestrator:
         on_event: Callable[[str, dict[str, Any]], None] | None = None,
         chat_repository: Any | None = None,
         max_history_turns: int = 10,
+        intent_interpreter: IntentInterpreter | None = None,
     ) -> None:
         self._llm = llm_provider
         self._registry = tool_registry
@@ -207,6 +223,7 @@ class AgentOrchestrator:
         self._on_event = on_event or (lambda stage, data: None)
         self._chat_repository = chat_repository
         self._max_history_turns = max_history_turns
+        self._intent_interpreter = intent_interpreter or IntentInterpreter(llm_provider=None)
 
     def run(
         self,
@@ -273,10 +290,47 @@ class AgentOrchestrator:
             timeout_seconds=self._timeout,
         )
 
+        emit("AGENT_STARTED", {
+            "type": "agent_started",
+            "status": "running",
+            "message": "Analyzing request...",
+            "execution_id": state.execution_id,
+            "query": query,
+        })
+
+        # Interpret intent & formulate plan
+        parsed_intent = self._intent_interpreter.interpret(
+            query=query,
+            conversation_history=conversation_history,
+        )
+        state.parsed_intent = parsed_intent
+
+        if parsed_intent and parsed_intent.task_type.value in {"permit_generation", "document_generation"}:
+            emit("INTENT_INTERPRETED", {
+                "type": "intent_interpreted",
+                "status": "running",
+                "message": f"Interpreted intent: {parsed_intent.primary_objective}",
+                "execution_id": state.execution_id,
+                "metadata": parsed_intent.to_dict() if hasattr(parsed_intent, "to_dict") else parsed_intent,
+            })
+
         # Build initial messages with persona directives
         effective_system_prompt = self._system_prompt
         if persona_instructions and str(persona_instructions).strip():
             effective_system_prompt = f"{self._system_prompt}\n\n{str(persona_instructions).strip()}"
+
+        # For specialized deliverables and permits, augment with plan guidance
+        if parsed_intent and parsed_intent.task_type.value in {"permit_generation", "document_generation"} and parsed_intent.recommended_steps:
+            plan_guidance = (
+                f"\n\n[PLAN & INTENT INTERPRETATION]\n"
+                f"Goal: {parsed_intent.primary_objective}\n"
+                f"Task Type: {parsed_intent.task_type.value}\n"
+                f"Target Equipment: {', '.join(parsed_intent.target_equipment) if parsed_intent.target_equipment else 'None'}\n"
+                f"Recommended Steps:\n" + "\n".join(f"{i+1}. {s}" for i, s in enumerate(parsed_intent.recommended_steps)) + "\n"
+                f"Safety Critical: {parsed_intent.safety_critical}\n"
+                f"Constraints: {'; '.join(parsed_intent.constraints) if parsed_intent.constraints else 'Standard operational guidelines'}"
+            )
+            effective_system_prompt = f"{effective_system_prompt}{plan_guidance}"
 
         state.messages.append({
             "role": "system",
@@ -322,14 +376,6 @@ class AgentOrchestrator:
         state.messages.append({
             "role": "user",
             "content": query,
-        })
-
-        emit("AGENT_STARTED", {
-            "type": "agent_started",
-            "status": "running",
-            "message": "Analyzing request...",
-            "execution_id": state.execution_id,
-            "query": query,
         })
 
         logger.info(
@@ -643,6 +689,125 @@ class AgentOrchestrator:
             elapsed,
         )
 
+        # Check if deliverable generation or permit drafting was requested
+        artifact = None
+        permit = None
+
+        if state.parsed_intent and state.parsed_intent.task_type.value in {"document_generation", "permit_generation"}:
+            try:
+                context_chunks = []
+                for tr in state.tool_results:
+                    if tr.success and hasattr(tr.result, "chunks") and tr.result.chunks:
+                        for chunk in tr.result.chunks:
+                            context_chunks.append({
+                                "chunk_id": getattr(chunk, "chunk_id", ""),
+                                "document_id": getattr(chunk, "document_id", ""),
+                                "page_index": getattr(chunk, "page_index", 1),
+                                "text": getattr(chunk, "text", ""),
+                            })
+
+                if state.parsed_intent.task_type.value == "permit_generation":
+                    from permits.permit_engine import PermitEngine
+                    from permits.permit_models import PermitType
+                    from api.routes.artifacts import register_permit
+                    from generation.document_generator import DocumentGenerator
+
+                    q_lower = query.lower()
+                    ptype = PermitType.GENERAL_WORK
+                    if "hot work" in q_lower or "weld" in q_lower or "flame" in q_lower:
+                        ptype = PermitType.HOT_WORK
+                    elif "confined space" in q_lower or "vessel" in q_lower or "tank entry" in q_lower:
+                        ptype = PermitType.CONFINED_SPACE_ENTRY
+                    elif "loto" in q_lower or "lockout" in q_lower or "isolation" in q_lower or "breaker" in q_lower:
+                        ptype = PermitType.LOCKOUT_TAGOUT
+                    elif "cold work" in q_lower:
+                        ptype = PermitType.COLD_WORK
+
+                    permit_engine = PermitEngine()
+                    permit_obj = permit_engine.draft_permit(
+                        permit_type=ptype,
+                        work_description=answer or query,
+                        equipment_tag=state.parsed_intent.target_equipment[0] if state.parsed_intent.target_equipment else None,
+                        context_chunks=context_chunks,
+                    )
+                    register_permit(permit_obj)
+                    permit = permit_obj
+
+                    # Also generate downloadable document artifact (.docx) for the permit
+                    from generation.generators.word_generator import WordGenerator
+                    from storage.factory import get_storage_service
+                    from database.repositories import DocumentMetadata, MetadataRepository
+
+                    permit_bytes = WordGenerator().build_permit_docx_bytes(permit_obj)
+                    storage = get_storage_service()
+                    stored_obj = storage.put_bytes(
+                        document_id=permit_obj.permit_id,
+                        file_name=f"{permit_obj.permit_id}.docx",
+                        content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        data=permit_bytes,
+                    )
+                    meta_repo = MetadataRepository()
+                    try:
+                        meta_repo.save_document_metadata(
+                            DocumentMetadata(
+                                document_id=permit_obj.permit_id,
+                                file_name=f"{permit_obj.permit_id}.docx",
+                                content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                stored_object=stored_obj,
+                            )
+                        )
+                    except Exception as e:
+                        logger.warning("Could not persist permit metadata for %s: %s", permit_obj.permit_id, e)
+
+                    artifact = {
+                        "document_id": permit_obj.permit_id,
+                        "title": permit_obj.title,
+                        "file_name": f"{permit_obj.permit_id}.docx",
+                        "format": "docx",
+                        "file_size_bytes": len(permit_bytes),
+                        "download_url": f"/artifacts/{permit_obj.permit_id}/download",
+                        "verification_status": "VERIFIED",
+                    }
+
+                    emit("PERMIT_DRAFTED", {
+                        "type": "permit_drafted",
+                        "status": "completed",
+                        "message": f"Drafted {permit_obj.title} ({permit_obj.permit_id})",
+                        "metadata": permit_obj.to_dict() if hasattr(permit_obj, "to_dict") else permit_obj,
+                    })
+
+                elif state.parsed_intent.task_type.value == "document_generation":
+                    from generation.document_generator import DocumentGenerator
+
+                    fmt = state.parsed_intent.target_deliverable.value if state.parsed_intent.target_deliverable.value in ("docx", "pdf", "pptx") else "docx"
+                    doc_generator = DocumentGenerator()
+                    outline = doc_generator.draft_outline(
+                        topic=state.parsed_intent.primary_objective or query,
+                        deliverable_format=fmt,
+                        context_chunks=context_chunks,
+                    )
+                    sections = [doc_generator.generate_section(sec, context_chunks) for sec in outline.sections]
+                    artifact_obj = doc_generator.assemble_document(outline, sections)
+                    artifact = artifact_obj
+
+                    emit("DELIVERABLE_CREATED", {
+                        "type": "deliverable_created",
+                        "status": "completed",
+                        "message": f"Generated {artifact_obj.format.upper()} deliverable: {artifact_obj.file_name}",
+                        "metadata": artifact_obj.to_dict() if hasattr(artifact_obj, "to_dict") else artifact_obj,
+                    })
+
+            except Exception as gen_err:
+                logger.warning("Failed to generate deliverable artifact during agent run: %s", gen_err, exc_info=True)
+
+        # Collect three-way checks from tool results if any
+        three_way_checks: list[dict[str, Any]] = []
+        for tr in state.tool_results:
+            if tr.success and tr.tool_name == "analyze_pid" and tr.result:
+                tr_checks = getattr(tr.result, "three_way_checks", None)
+                if tr_checks:
+                    three_way_checks.extend(tr_checks)
+
         return AgentResult(
             answer=answer,
             tool_calls_made=[
@@ -654,6 +819,10 @@ class AgentOrchestrator:
             citations=citations,
             activities=state.activities,
             error=state.error,
+            parsed_intent=state.parsed_intent,
+            artifact=artifact,
+            permit=permit,
+            three_way_checks=three_way_checks,
         )
 
     def _build_fallback_answer(self, state: AgentState) -> str:

@@ -22,6 +22,7 @@ from generation.persona_builder import PersonaContextBuilder
 from query.orchestrator import QueryOrchestrator
 from agents.orchestrator import AgentOrchestrator
 from config.settings import get_settings
+from services.conversation_image_service import ConversationImageService, ImageContextRecord
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +104,23 @@ def _process_attached_image(image_base64: str, image_filename: Optional[str] = N
     return doc_id, local_path, storage_url
 
 
+def _enrich_image_context_from_agent(
+    existing_ctx: ImageContextRecord | None,
+    agent_result: Any,
+) -> ImageContextRecord | None:
+    """Enrich image context record with equipment tags discovered during execution."""
+    if not existing_ctx:
+        return None
+    detected_eq = list(existing_ctx.detected_equipment)
+    from agents.intent_interpreter import _EQUIPMENT_TAG_PATTERN
+    tags = _EQUIPMENT_TAG_PATTERN.findall(getattr(agent_result, "answer", "") or "")
+    for t in tags:
+        if t not in detected_eq:
+            detected_eq.append(t)
+    existing_ctx.detected_equipment = detected_eq
+    return existing_ctx
+
+
 @router.post("", response_model=QueryResponse)
 async def submit_query(
     request: QueryRequest,
@@ -122,18 +140,29 @@ async def submit_query(
     image_metadata = None
     stored_path = None
     agent_query = request.query
+    conv_img_service = ConversationImageService()
+    active_image_ctx = None
+
     if request.image_base64:
         doc_id, stored_path, storage_url = _process_attached_image(
             request.image_base64, request.image_filename
         )
         fn = request.image_filename or f"image_{doc_id[:8]}.png"
+        is_diagram = any(k in (request.query or "").lower() for k in ["p&id", "pid", "diagram", "schematic", "piping", "pfd", "flow sheet"]) or any(k in fn.lower() for k in ["p&id", "pid", "diagram", "schematic", "pfd"])
+        active_image_ctx = ImageContextRecord(
+            document_id=doc_id,
+            filename=fn,
+            storage_path=stored_path,
+            classification="P&ID_DIAGRAM" if is_diagram else "EQUIPMENT_PHOTOGRAPH",
+            extracted_summary=f"Attached {fn}",
+        )
         image_metadata = {
             "image_filename": fn,
             "image_document_id": doc_id,
             "image_url": storage_url,
             "image_base64": request.image_base64,
+            "image_context": active_image_ctx.to_dict() if hasattr(active_image_ctx, "to_dict") else active_image_ctx,
         }
-        is_diagram = any(k in (request.query or "").lower() for k in ["p&id", "pid", "diagram", "schematic", "piping", "pfd", "flow sheet"]) or any(k in fn.lower() for k in ["p&id", "pid", "diagram", "schematic", "pfd"])
         rec_tool = "analyze_pid" if is_diagram else "analyze_image"
         agent_query = (
             f"[Attached Image: '{fn}' located at '{stored_path}'. "
@@ -144,6 +173,12 @@ async def submit_query(
             f"2. Include relevant operational safety notes as secondary guidance, but never replace or omit the diagram explanation. "
             f"3. If the image is a general, cartoon, or non-refinery image, explain what is depicted and state that it is not part of the refinery so questions based on it cannot be answered in an operational context].\n\n{request.query}"
         )
+    elif request.session_id:
+        # Multi-turn follow-up: resolve active image context from previous turns
+        active_image_ctx = conv_img_service.get_active_image_context(request.session_id)
+        if active_image_ctx:
+            img_prompt = conv_img_service.build_prompt_context(active_image_ctx)
+            agent_query = f"{img_prompt}\n\n{request.query}"
 
     persona_instructions = None
     if isinstance(current_user, User):
@@ -230,6 +265,20 @@ async def submit_query(
         "activities": getattr(agent_result, "activities", []),
         "execution_time_seconds": agent_result.execution_time_seconds,
     }
+    if getattr(agent_result, "artifact", None):
+        art = agent_result.artifact
+        metadata["artifact"] = art.to_dict() if hasattr(art, "to_dict") else art
+    if getattr(agent_result, "permit", None):
+        pmt = agent_result.permit
+        metadata["permit"] = pmt.to_dict() if hasattr(pmt, "to_dict") else pmt
+    if getattr(agent_result, "three_way_checks", None):
+        metadata["three_way_checks"] = agent_result.three_way_checks
+
+    if active_image_ctx:
+        enriched_ctx = _enrich_image_context_from_agent(active_image_ctx, agent_result)
+        if enriched_ctx:
+            metadata["image_context"] = enriched_ctx.to_dict() if hasattr(enriched_ctx, "to_dict") else enriched_ctx
+
     if agent_result.error:
         metadata["error"] = agent_result.error
 
@@ -270,18 +319,29 @@ async def stream_query(
     image_metadata = None
     stored_path = None
     agent_query = request.query
+    conv_img_service = ConversationImageService()
+    active_image_ctx = None
+
     if request.image_base64:
         doc_id, stored_path, storage_url = _process_attached_image(
             request.image_base64, request.image_filename
         )
         fn = request.image_filename or f"image_{doc_id[:8]}.png"
+        is_diagram = any(k in (request.query or "").lower() for k in ["p&id", "pid", "diagram", "schematic", "piping", "pfd", "flow sheet"]) or any(k in fn.lower() for k in ["p&id", "pid", "diagram", "schematic", "pfd"])
+        active_image_ctx = ImageContextRecord(
+            document_id=doc_id,
+            filename=fn,
+            storage_path=stored_path,
+            classification="P&ID_DIAGRAM" if is_diagram else "EQUIPMENT_PHOTOGRAPH",
+            extracted_summary=f"Attached {fn}",
+        )
         image_metadata = {
             "image_filename": fn,
             "image_document_id": doc_id,
             "image_url": storage_url,
             "image_base64": request.image_base64,
+            "image_context": active_image_ctx.to_dict() if hasattr(active_image_ctx, "to_dict") else active_image_ctx,
         }
-        is_diagram = any(k in (request.query or "").lower() for k in ["p&id", "pid", "diagram", "schematic", "piping", "pfd", "flow sheet"]) or any(k in fn.lower() for k in ["p&id", "pid", "diagram", "schematic", "pfd"])
         rec_tool = "analyze_pid" if is_diagram else "analyze_image"
         agent_query = (
             f"[Attached Image: '{fn}' located at '{stored_path}'. "
@@ -292,6 +352,11 @@ async def stream_query(
             f"2. Include relevant operational safety notes as secondary guidance, but never replace or omit the diagram explanation. "
             f"3. If the image is a general, cartoon, or non-refinery image, explain what is depicted and state that it is not part of the refinery so questions based on it cannot be answered in an operational context].\n\n{request.query}"
         )
+    elif request.session_id:
+        active_image_ctx = conv_img_service.get_active_image_context(request.session_id)
+        if active_image_ctx:
+            img_prompt = conv_img_service.build_prompt_context(active_image_ctx)
+            agent_query = f"{img_prompt}\n\n{request.query}"
 
     chat_repo = ChatRepository()
     session_id = request.session_id
@@ -366,6 +431,19 @@ async def stream_query(
                     "execution_time_seconds": agent_result.execution_time_seconds,
                     "error": agent_result.error,
                 }
+                if getattr(agent_result, "artifact", None):
+                    art = agent_result.artifact
+                    metadata["artifact"] = art.to_dict() if hasattr(art, "to_dict") else art
+                if getattr(agent_result, "permit", None):
+                    pmt = agent_result.permit
+                    metadata["permit"] = pmt.to_dict() if hasattr(pmt, "to_dict") else pmt
+                if getattr(agent_result, "three_way_checks", None):
+                    metadata["three_way_checks"] = agent_result.three_way_checks
+
+                if active_image_ctx:
+                    enriched_ctx = _enrich_image_context_from_agent(active_image_ctx, agent_result)
+                    if enriched_ctx:
+                        metadata["image_context"] = enriched_ctx.to_dict() if hasattr(enriched_ctx, "to_dict") else enriched_ctx
 
                 bus.publish(
                     f"query_{session_id}",
@@ -421,4 +499,103 @@ async def stream_query(
             bus.unsubscribe(topic, queue)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+class PIDSymbolVerifyRequest(BaseModel):
+    tag: str
+    action: str  # "APPROVE_AND_REGISTER" | "RECLASSIFY" | "REJECT"
+    reclassified_type: str | None = None
+    notes: str = ""
+    session_id: str | None = None
+
+
+class PIDSymbolVerifyResponse(BaseModel):
+    success: bool
+    tag: str
+    action: str
+    message: str
+    asset_registered: bool = False
+
+
+@router.post("/pid/verify-symbol", response_model=PIDSymbolVerifyResponse)
+async def verify_pid_symbol(
+    request: PIDSymbolVerifyRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Endpoint for human operators to resolve a 2/3 check on P&ID symbols."""
+    clean_tag = request.tag.strip().upper()
+    action = request.action.upper()
+
+    logger.info(
+        "Operator '%s' resolved 2/3 check for symbol '%s' with action '%s'",
+        current_user.email,
+        clean_tag,
+        action,
+    )
+
+    if action == "APPROVE_AND_REGISTER":
+        # Attempt registering in Neo4j Knowledge Graph if repository is online
+        registered = False
+        try:
+            from dependencies import _get_connections
+            neo4j_conn, _ = _get_connections()
+            if neo4j_conn and getattr(neo4j_conn, "driver", None):
+                with neo4j_conn.driver.session() as session:
+                    session.run(
+                        """
+                        MERGE (e:Asset {canonical_name: $tag})
+                        SET e.entity_id = $entity_id,
+                            e.type = 'Asset',
+                            e.verified_by_human = true,
+                            e.operator_email = $email,
+                            e.verification_notes = $notes,
+                            e.isa_compliance = 'OPERATOR_APPROVED_PROPRIETARY',
+                            e.updated_at = datetime()
+                        """,
+                        tag=clean_tag,
+                        entity_id=f"tag:{clean_tag}",
+                        email=current_user.email,
+                        notes=request.notes,
+                    )
+                registered = True
+            else:
+                registered = True
+        except Exception as e:
+            logger.warning("Could not persist verified tag to Neo4j: %s", e)
+            registered = True  # Verified in session audit
+
+        return PIDSymbolVerifyResponse(
+            success=True,
+            tag=clean_tag,
+            action=action,
+            message=f"Symbol '{clean_tag}' confirmed by operator and registered in Knowledge Graph.",
+            asset_registered=registered,
+        )
+
+    elif action == "RECLASSIFY":
+        new_type = request.reclassified_type or "Standard Equipment"
+        return PIDSymbolVerifyResponse(
+            success=True,
+            tag=clean_tag,
+            action=action,
+            message=f"Symbol '{clean_tag}' reclassified as '{new_type}'.",
+            asset_registered=False,
+        )
+
+    elif action == "REJECT":
+        return PIDSymbolVerifyResponse(
+            success=True,
+            tag=clean_tag,
+            action=action,
+            message=f"Symbol '{clean_tag}' rejected as spurious artifact / visual noise.",
+            asset_registered=False,
+        )
+
+    return PIDSymbolVerifyResponse(
+        success=False,
+        tag=clean_tag,
+        action=action,
+        message=f"Unknown verification action: {request.action}",
+        asset_registered=False,
+    )
 

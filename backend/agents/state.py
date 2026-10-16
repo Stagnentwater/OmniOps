@@ -48,6 +48,7 @@ class AgentState:
     # Outcome
     final_answer: str | None = None
     error: str | None = None
+    parsed_intent: Any | None = None
 
     @property
     def is_timed_out(self) -> bool:
